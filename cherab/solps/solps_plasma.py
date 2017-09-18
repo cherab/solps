@@ -16,8 +16,6 @@
 # under the Licence.
 
 import re
-import os
-from math import sqrt
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.constants import atomic_mass, electron_mass
@@ -33,24 +31,10 @@ from cherab.core.atomic.elements import hydrogen, deuterium, helium, beryllium, 
     argon, krypton, xenon
 
 # This SOLPS package imports
-from .mesh_geometry import SOLPSMesh
-from .b2.parse_b2_block_file import load_b2f_file
 from .solps_3d_functions import SOLPSFunction3D, SOLPSVectorFunction3D
-from .eirene import Eirene
 
 
 Q = 1.602E-19
-
-# key is nuclear charge Z and atomic mass AMU
-_popular_species = {
-    (1, 2): deuterium,
-    (6, 12.011): carbon,
-    (2, 4.003): helium,
-    (7, 14.007): nitrogen,
-    (18, 39.948): argon,
-    (36, 83.798): krypton,
-    (54, 131.293): xenon
-}
 
 _species_symbol_map = {
     'D': deuterium,
@@ -399,7 +383,10 @@ class SOLPSSimulation:
         tri_index_lookup = self.mesh.triangle_index_lookup
         tri_to_grid = self.mesh.triangle_to_grid_map
 
-        plasma.b_field = SOLPSVectorFunction3D(tri_index_lookup, tri_to_grid, self.b_field)
+        if isinstance(self._b_field_vectors, np.ndarray):
+            plasma.b_field = SOLPSVectorFunction3D(tri_index_lookup, tri_to_grid, self._b_field_vectors)
+        else:
+            print('Warning! No magnetic field data available for this simulation.')
 
         # Create electron species
         triangle_data = _map_data_onto_triangles(self._electron_temperature)
@@ -411,6 +398,9 @@ class SOLPSSimulation:
         electron_velocity = lambda x, y, z: Vector3D(0, 0, 0)
         plasma.electron_distribution = Maxwellian(electron_dens, electron_temp, electron_velocity, electron_mass)
 
+        if not isinstance(self.velocities_cartesian, np.ndarray):
+            print('Warning! No velocity field data available for this simulation.')
+
         b2_neutral_i = 0  # counter for B2 neutrals
         for k, sp in enumerate(self.species_list):
 
@@ -420,8 +410,7 @@ class SOLPSSimulation:
             species_type = _species_symbol_map[symbol]
 
             # If neutral and B" atomic density available,  use B2 density, otherwise use fluid species density.
-            # if self.b2_neutral_densities and charge == 0:
-            if charge == 0:
+            if isinstance(self.b2_neutral_densities, np.ndarray) and charge == 0:
                 species_dens_data = self.b2_neutral_densities[:, :, b2_neutral_i]
                 b2_neutral_i += 1
             else:
@@ -432,41 +421,15 @@ class SOLPSSimulation:
             # dens = SOLPSFunction3D(tri_index_lookup, tri_to_grid, species_dens_data)
 
             # Create the velocity vector lookup function
-            velocity = SOLPSVectorFunction3D(tri_index_lookup, tri_to_grid, self.velocities_cartesian[:, :, k, :])
+            if isinstance(self.velocities_cartesian, np.ndarray):
+                velocity = SOLPSVectorFunction3D(tri_index_lookup, tri_to_grid, self.velocities_cartesian[:, :, k, :])
+            else:
+                velocity = lambda x, y, z: Vector3D(0, 0, 0)
 
             distribution = Maxwellian(dens, electron_temp, velocity, species_type.atomic_weight * atomic_mass)
             plasma.composition.add(Species(species_type, charge, distribution))
 
         return plasma
-
-
-# reshape method when loading from files
-def _load_solps_vertex_signal(mds_connection, signal, mesh, template_interpolator=None, integrate_range=None):
-
-    if integrate_range:
-        lower, upper = integrate_range
-        signal_data = np.swapaxes(mds_connection.get(signal).data(), 0, 2)  # (x, 32, 98) => (98, 32, x)
-        signal_data = signal_data[:, :, lower:upper]
-        signal_data = np.sum(signal_data, axis=2)
-    else:
-        signal_data = np.swapaxes(mds_connection.get(signal).data(), 0, 1)  # (32, 98) => (98, 32)
-    triangle_data = _map_data_onto_triangles(signal_data)
-
-    if template_interpolator:
-        return Discrete2DMesh.instance(template_interpolator, triangle_data)
-    else:
-        return Discrete2DMesh(mesh.vertex_coords, mesh.triangles, triangle_data, limit=False)
-
-
-# reshape method when loading from files
-def _reshape_solps_data(signal_data, mesh, template_interpolator=None):
-
-    triangle_data = _map_data_onto_triangles(signal_data)
-
-    if template_interpolator:
-        return Discrete2DMesh.instance(template_interpolator, triangle_data)
-    else:
-        return Discrete2DMesh(mesh.vertex_coords, mesh.triangles, triangle_data, limit=False)
 
 
 def _map_data_onto_triangles(solps_dataset):
@@ -491,234 +454,3 @@ def _map_data_onto_triangles(solps_dataset):
             tri_index += 1
 
     return triangle_data
-
-
-def load_solps_from_mdsplus(mds_server, ref_number):
-    """
-    Load a SOLPS simulation from a MDSplus server.
-
-    :param str mds_server: Server address.
-    :param int ref_number: Simulation reference number.
-    :rtype: SOLPSSimulation
-    """
-
-    from MDSplus import Connection as MDSConnection
-
-    # Setup connection to server
-    conn = MDSConnection(mds_server)
-    conn.openTree('solps', ref_number)
-
-    # Load SOLPS mesh geometry and lookup arrays
-    mesh = SOLPSMesh.load_from_mdsplus(conn)
-    sim = SOLPSSimulation(mesh)
-    ni = mesh.nx
-    nj = mesh.ny
-
-    ##########################
-    # Magnetic field vectors #
-    raw_b_field = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.B').data(), 0, 2)
-    b_field_vectors_cartesian = np.zeros((ni, nj, 3))
-    b_field_vectors = np.zeros((ni, nj, 3))
-    for i in range(ni):
-        for j in range(nj):
-            bparallel = raw_b_field[i, j, 0]
-            bradial = raw_b_field[i, j, 1]
-            btoroidal = raw_b_field[i, j, 2]
-            b_field_vectors[i, j] = (bparallel, bradial, btoroidal)
-
-            pv = mesh.poloidal_grid_basis[i, j, 0]  # parallel basis vector
-            rv = mesh.poloidal_grid_basis[i, j, 1]  # radial basis vector
-
-            bx = pv.x * bparallel + rv.x * bradial  # component of B along poloidal x
-            by = pv.y * bparallel + rv.y * bradial  # component of B along poloidal y
-            b_field_vectors_cartesian[i, j] = (bx, btoroidal, by)
-    sim._b_field_vectors = b_field_vectors
-    sim._b_field_vectors_cartesian = b_field_vectors_cartesian
-
-    # Load electron species
-    sim._electron_temperature = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.TE').data(), 0, 1)  # (32, 98) => (98, 32)
-    sim._electron_density = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.NE').data(), 0, 1)  # (32, 98) => (98, 32)
-
-    ############################
-    # Load each plasma species #
-    ############################
-
-    # Master list of species, e.g. ['D0', 'D+1', 'C0', 'C+1', ...
-    sim._species_list = conn.get('\SOLPS::TOP.IDENT.SPECIES').data().decode('UTF-8').split()
-    sim._species_density = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.NA').data(), 0, 2)
-    sim._rad_par_flux = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.FNAY').data(), 0, 2)  # radial particle flux
-    sim._radial_area = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.SY').data(), 0, 1)  # radial contact area
-
-    # Load the neutral atom density from B2
-    neutral_dens_data = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.DAB2').data(), 0, 2)
-    sim._b2_neutral_densities = neutral_dens_data
-
-    sim._velocities_parallel = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.UA').data(), 0, 2)
-    sim._velocities_radial = np.zeros((ni, nj, len(sim.species_list)))
-    sim._velocities_toroidal = np.zeros((ni, nj, len(sim.species_list)))
-    sim._velocities_cartesian = np.zeros((ni, nj, len(sim.species_list), 3), dtype=np.float64)
-
-    ################################################
-    # Calculate the species' velocity distribution #
-    b2_neutral_i = 0  # counter for B2 neutrals
-    for k, sp in enumerate(sim.species_list):
-
-        # Identify the species based on its symbol
-        symbol, charge = re.match(_SPECIES_REGEX, sp).groups()
-        charge = int(charge)
-
-        # If neutral and B" atomic density available,  use B2 density, otherwise use fluid species density.
-        # if sim.b2_neutral_densities and charge == 0:
-        if charge == 0:
-            species_dens_data = sim.b2_neutral_densities[:, :, b2_neutral_i]
-            b2_neutral_i += 1
-        else:
-            species_dens_data = sim.species_density[:, :, k]
-
-        for i in range(ni):
-            for j in range(nj):
-                # Load grid basis vectors
-                pv = mesh.poloidal_grid_basis[i, j, 0]  # parallel basis vector
-                rv = mesh.poloidal_grid_basis[i, j, 1]  # radial basis vector
-
-                # calculate field component ratios for velocity conversion
-                bparallel = b_field_vectors[i, j, 0]
-                btoroidal = b_field_vectors[i, j, 2]
-                bplane = sqrt(bparallel**2 + btoroidal**2)
-                parallel_to_toroidal_ratio = bparallel * btoroidal / (bplane**2)
-
-                # Calculate toroidal and radial velocity components
-                v_parallel = sim.velocities_parallel[i, j, k]  # straight from SOLPS 'UA' variable
-                v_toroidal = v_parallel * parallel_to_toroidal_ratio
-                sim.velocities_toroidal[i, j, k] = v_toroidal
-                # Special case for edge of mesh, no radial velocity expected.
-                try:
-                    if species_dens_data[i, j] == 0:
-                        v_radial = 0.0
-                    else:
-                        v_radial = sim.radial_particle_flux[i, j, k] / sim.radial_area[i, j] / species_dens_data[i, j]
-                except IndexError:
-                    v_radial = 0.0
-                sim.velocities_radial[i, j, k] = v_radial
-
-                # Convert velocities to cartesian coordinates
-                vx = pv.x * v_parallel + rv.x * v_radial  # component of v along poloidal x
-                vy = pv.y * v_parallel + rv.y * v_radial  # component of v along poloidal y
-                sim.velocities_cartesian[i, j, k, :] = (vx, v_toroidal, vy)
-
-    # Make Mesh Interpolator function for inside/outside mesh test.
-    inside_outside_data = np.ones(mesh.num_tris)
-    inside_outside = AxisymmetricMapper(Discrete2DMesh(mesh.vertex_coords, mesh.triangles, inside_outside_data))
-    sim._inside_mesh = inside_outside
-
-    ###############################
-    # Load extra data from server #
-    ###############################
-
-    ####################
-    # Integrated power #
-    vol = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.VOL').data(), 0, 1)  # TODO - this should be a mesh property
-    linerad = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.RQRAD').data(), 0, 2)
-    linerad = np.sum(linerad, axis=2)
-    brmrad = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.RQBRM').data(), 0, 2)
-    brmrad = np.sum(brmrad, axis=2)
-
-    total_rad_data = np.zeros(vol.shape)
-    ni, nj = vol.shape
-    for i in range(ni):
-        for j in range(nj):
-            total_rad_data[i, j] = (linerad[i, j] + brmrad[i, j]) / vol[i, j]
-    sim._total_rad = total_rad_data
-
-    return sim
-
-
-# # Code based on script by Felix Reimold (2016)
-# @staticmethod
-# def load_from_output_files(simulation_path, debug=False):
-#     """
-#     Load a SOLPS simulation from raw SOLPS output files.
-#
-#     Required files include:
-#     * mesh description file (b2fgmtry)
-#     * B2 plasma state (b2fstate)
-#     * Eirene output file (fort.44)
-#
-#     :param str simulation_path: String path to simulation directory.
-#     :rtype: SOLPSSimulation
-#     """
-#
-#     if not os.path.isdir(simulation_path):
-#         RuntimeError("simulation_path must be a valid directory")
-#
-#     mesh_file_path = os.path.join(simulation_path, 'b2fgmtry')
-#     b2_state_file = os.path.join(simulation_path, 'b2fstate')
-#     eirene_fort44_file = os.path.join(simulation_path, "fort.44")
-#
-#     if not os.path.isfile(mesh_file_path):
-#         raise RuntimeError("No B2 b2fgmtry file found in SOLPS output directory")
-#
-#     if not(os.path.isfile(b2_state_file)):
-#         RuntimeError("No B2 b2fstate file found in SOLPS output directory")
-#
-#     if not(os.path.isfile(eirene_fort44_file)):
-#         RuntimeError("No EIRENE fort.44 file found in SOLPS output directory")
-#
-#     plasma = Plasma(name="Plasma")
-#     velocity = lambda x, y, z: Vector3D(0, 0, 1)
-#
-#     # Load SOLPS mesh geometry
-#     mesh = SOLPSMesh.load_from_files(mesh_file_path=mesh_file_path, debug=debug)
-#
-#     header_dict, sim_info_dict, mesh_data_dict = load_b2f_file(b2_state_file, debug=debug)
-#
-#     # TODO: add code to load SOLPS velocities and magnetic field from files
-#
-#     # Load electron species
-#     electron_interp = _reshape_solps_data(mesh_data_dict['te']/Q, mesh)
-#     electron_temp = AxisymmetricMapper(electron_interp)
-#     electron_dens = AxisymmetricMapper(_reshape_solps_data(mesh_data_dict['ne'], mesh))
-#     electrons = Maxwellian(electron_dens, electron_temp, velocity, electron_mass)
-#     plasma.electron_distribution = electrons
-#
-#     ##########################################
-#     # Load each plasma species in simulation #
-#     ##########################################
-#
-#     for i in range(len(sim_info_dict['zn'])):
-#
-#         zn = int(sim_info_dict['zn'][i])  # Nuclear charge
-#         am = float(sim_info_dict['am'][i])  # Atomic mass
-#         charge = int(sim_info_dict['zamax'][i])  # Ionisation/charge
-#         species = _popular_species[(zn, am)]
-#
-#         # load a species density distribution, use electrons for temperature, ignore flow velocity
-#         signal_data = mesh_data_dict['na'][:, :, i]
-#         triangle_data = _map_data_onto_triangles(signal_data)
-#         dens = AxisymmetricMapper(Discrete2DMesh.instance(electron_interp, triangle_data))
-#         distribution = Maxwellian(dens, electron_temp, velocity, species.atomic_weight * atomic_mass)
-#         plasma.composition.add(Species(species, charge, distribution))
-#
-#     # Make Mesh Interpolator function for inside/outside mesh test.
-#     inside_outside = AxisymmetricMapper(Discrete2DMesh.instance(electron_interp, np.ones(mesh.num_tris)))
-#
-#     # plasma.inside_outside = inside_outside
-#
-#     sim = SOLPSSimulation(mesh, plasma)
-#     sim._inside_mesh = inside_outside
-#
-#     # Load total radiated power from EIRENE output file
-#     eirene = Eirene(eirene_fort44_file)
-#     sim._eirene = eirene
-#
-#     # Note EIRENE data grid is slightly smaller than SOLPS grid, for example (98, 38) => (96, 36)
-#     # Need to pad EIRENE data to fit inside larger B2 array
-#     nx = mesh.nx
-#     ny = mesh.ny
-#     eradt_raw_data = eirene.eradt.sum(2)
-#     eradt_data = np.zeros((nx, ny))
-#     eradt_data[1:nx-1, 1:ny-1] = eradt_raw_data
-#     eradt_data = _map_data_onto_triangles(eradt_data)
-#     sim._total_rad = AxisymmetricMapper(Discrete2DMesh.instance(electron_interp, eradt_data))
-#
-#     return sim

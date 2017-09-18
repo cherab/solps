@@ -19,13 +19,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from cherab.core.atomic.elements import deuterium
-from cherab.solps import SOLPSSimulation
+from cherab.solps import load_solps_from_raw_output
 
 # Change to your local solps output files directory
-sim = SOLPSSimulation.load_from_output_files('/home/mcarr/mst1/aug_2016/solps_testcase', debug=True)
+sim = load_solps_from_raw_output('/home/mcarr/mst1/aug_2016/solps_testcase', debug=True)
 
 mesh = sim.mesh
-plasma = sim.plasma
+plasma = sim.create_plasma()
 
 me = mesh.mesh_extent
 xl, xu = (me['minr'], me['maxr'])
