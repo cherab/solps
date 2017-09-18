@@ -16,5 +16,5 @@
 # under the Licence.
 
 from .mesh_geometry import SOLPSMesh
-from .solps_plasma import SOLPSSimulation
+from .solps_plasma import SOLPSSimulation, load_solps_from_mdsplus
 from .solps_3d_functions import SOLPSFunction3D, SOLPSVectorFunction3D

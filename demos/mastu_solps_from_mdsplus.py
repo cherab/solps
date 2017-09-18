@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from cherab.core.atomic.elements import carbon, deuterium
-from cherab.solps import SOLPSSimulation
+from cherab.solps import load_solps_from_mdsplus
 
 plt.ion()
 
@@ -31,8 +31,8 @@ xl, xu = (0.0, 2.0)
 yl, yu = (-2.0, 2.0)
 
 
-sim = SOLPSSimulation.load_from_mdsplus(mds_server, ref_number)
-plasma = sim.plasma
+sim = load_solps_from_mdsplus(mds_server, ref_number)
+plasma = sim.create_plasma()
 mesh = sim.mesh
 vessel = mesh.vessel
 
