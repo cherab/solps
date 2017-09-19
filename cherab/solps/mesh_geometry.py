@@ -20,10 +20,7 @@ from collections import namedtuple
 
 import numpy as np
 import matplotlib.pyplot as plt
-from raysect.core import Point2D
 from raysect.core.math.interpolators import Discrete2DMesh
-
-from .b2.parse_b2_block_file import load_b2f_file
 
 INFINITY = 1E99
 
@@ -177,95 +174,6 @@ class SOLPSMesh:
         """
         return self._tri_index_loopup
 
-    @staticmethod
-    def load_from_mdsplus(mds_connection):
-        """
-        Load the SOLPS mesh geometry from a given MDSplus connection.
-
-        :param mds_connection: MDSplus connection object. Already set to the SOLPS tree with pulse #ID.
-        """
-
-        # Load the R, Z coordinates of the cell vertices, original coordinates are (4, 38, 98)
-        # re-arrange axes (4, 38, 98) => (98, 38, 4)
-        x = np.swapaxes(mds_connection.get('\TOP.SNAPSHOT.GRID:R').data(), 0, 2)
-        z = np.swapaxes(mds_connection.get('\TOP.SNAPSHOT.GRID:Z').data(), 0, 2)
-
-        vol = np.swapaxes(mds_connection.get('\SOLPS::TOP.SNAPSHOT.VOL').data(), 0, 1)
-
-        # build mesh object
-        mesh = SOLPSMesh(x, z, vol)
-
-        #############################
-        # Add additional parameters #
-        #############################
-
-        # add the vessel geometry
-        mesh.vessel = mds_connection.get('\SOLPS::TOP.SNAPSHOT.GRID:VESSEL').data()
-
-        # Load the centre points of the grid cells.
-        cr = np.swapaxes(mds_connection.get('\TOP.SNAPSHOT.GRID:CR').data(), 0, 1)
-        cz = np.swapaxes(mds_connection.get('\TOP.SNAPSHOT.GRID:CZ').data(), 0, 1)
-        mesh._cr = cr
-        mesh._cz = cz
-
-        # Load cell basis vectors
-        nx = mesh.nx
-        ny = mesh.ny
-
-        cell_poloidal_basis = np.empty((nx, ny, 2), dtype=object)
-        for i in range(nx):
-            for j in range(ny):
-
-                # Work out cell's 2D parallel vector in the poloidal plane
-                if i == nx - 1:
-                    # Special case for end of array, repeat previous calculation.
-                    # This is because I don't have access to the gaurd cells.
-                    xp_x = cr[i, j] - cr[i-1, j]
-                    xp_y = cz[i, j] - cz[i-1, j]
-                    norm = np.sqrt(xp_x**2 + xp_y**2)
-                    cell_poloidal_basis[i, j, 0] = Point2D(xp_x/norm, xp_y/norm)
-                else:
-                    xp_x = cr[i+1, j] - cr[i, j]
-                    xp_y = cz[i+1, j] - cz[i, j]
-                    norm = np.sqrt(xp_x**2 + xp_y**2)
-                    cell_poloidal_basis[i, j, 0] = Point2D(xp_x/norm, xp_y/norm)
-
-                # Work out cell's 2D radial vector in the poloidal plane
-                if j == ny - 1:
-                    # Special case for end of array, repeat previous calculation.
-                    yr_x = cr[i, j] - cr[i, j-1]
-                    yr_y = cz[i, j] - cz[i, j-1]
-                    norm = np.sqrt(yr_x**2 + yr_y**2)
-                    cell_poloidal_basis[i, j, 1] = Point2D(yr_x/norm, yr_y/norm)
-                else:
-                    yr_x = cr[i, j+1] - cr[i, j]
-                    yr_y = cz[i, j+1] - cz[i, j]
-                    norm = np.sqrt(yr_x**2 + yr_y**2)
-                    cell_poloidal_basis[i, j, 1] = Point2D(yr_x/norm, yr_y/norm)
-
-        mesh._poloidal_grid_basis = cell_poloidal_basis
-
-        return mesh
-
-    @staticmethod
-    def load_from_files(mesh_file_path, debug=False):
-        """
-        Load SOLPS grid description from B2 Eirene output file.
-
-        :param str filepath: full path for B2 eirene mesh description file
-        :param bool debug: flag for displaying textual debugging information.
-        :return: tuple of dictionaries. First is the header information such as the version, label, grid size, etc.
-          Second dictionary has a ndarray for each piece of data found in the file.
-        """
-        _, _, geom_data_dict = load_b2f_file(mesh_file_path, debug=debug)
-
-        cr_x = geom_data_dict['crx']
-        cr_z = geom_data_dict['cry']
-        vol = geom_data_dict['vol']
-
-        # build mesh object
-        return SOLPSMesh(cr_x, cr_z, vol)
-
     def plot_mesh(self):
         """
         Plot the mesh grid geometry to a matplotlib figure.
@@ -286,26 +194,3 @@ class SOLPSMesh:
         #     plt.plot([vessel[i, 0], vessel[i, 2]], [vessel[i, 1], vessel[i, 3]], 'k')
         # for i in range(vessel.shape[0]):
         #     plt.plot([vessel[i, 0], vessel[i, 2]], [vessel[i, 1], vessel[i, 3]], 'or')
-
-
-def _test_geometry_mds(mds_server='solps-mdsplus.aug.ipp.mpg.de:8001', ref_number=40195):
-
-    from MDSplus import Connection as MDSConnection
-
-    # Setup connection to server
-    conn = MDSConnection(mds_server)
-    conn.openTree('solps', ref_number)
-
-    # Load SOLPS mesh geometry
-    mesh = SOLPSMesh.load_from_mdsplus(conn)
-    mesh.plot_mesh()
-
-
-def _test_geometry_files(filepath='/home/matt/CCFE/cherab/demo/aug/solpsfiles/b2fgmtry', debug=True):
-
-    mesh = SOLPSMesh.load_from_files(mesh_file_path=filepath, debug=debug)
-    mesh.plot_mesh()
-
-
-if __name__ == '__main__':
-    _test_geometry_mds()

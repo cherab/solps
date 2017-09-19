@@ -18,6 +18,7 @@
 import re
 import numpy as np
 from math import sqrt
+from raysect.core import Point2D
 from raysect.core.math.interpolators import Discrete2DMesh
 
 from cherab.core.math.mappers import AxisymmetricMapper
@@ -44,7 +45,7 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     conn.openTree('solps', ref_number)
 
     # Load SOLPS mesh geometry and lookup arrays
-    mesh = SOLPSMesh.load_from_mdsplus(conn)
+    mesh = load_mesh_from_mdsplus(conn)
     sim = SOLPSSimulation(mesh)
     ni = mesh.nx
     nj = mesh.ny
@@ -166,3 +167,73 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     sim._total_rad = total_rad_data
 
     return sim
+
+
+def load_mesh_from_mdsplus(mds_connection):
+    """
+    Load the SOLPS mesh geometry for a given MDSplus connection.
+
+    :param mds_connection: MDSplus connection object. Already set to the SOLPS tree with pulse #ID.
+    """
+
+    # Load the R, Z coordinates of the cell vertices, original coordinates are (4, 38, 98)
+    # re-arrange axes (4, 38, 98) => (98, 38, 4)
+    x = np.swapaxes(mds_connection.get('\TOP.SNAPSHOT.GRID:R').data(), 0, 2)
+    z = np.swapaxes(mds_connection.get('\TOP.SNAPSHOT.GRID:Z').data(), 0, 2)
+
+    vol = np.swapaxes(mds_connection.get('\SOLPS::TOP.SNAPSHOT.VOL').data(), 0, 1)
+
+    # build mesh object
+    mesh = SOLPSMesh(x, z, vol)
+
+    #############################
+    # Add additional parameters #
+    #############################
+
+    # add the vessel geometry
+    mesh.vessel = mds_connection.get('\SOLPS::TOP.SNAPSHOT.GRID:VESSEL').data()
+
+    # Load the centre points of the grid cells.
+    cr = np.swapaxes(mds_connection.get('\TOP.SNAPSHOT.GRID:CR').data(), 0, 1)
+    cz = np.swapaxes(mds_connection.get('\TOP.SNAPSHOT.GRID:CZ').data(), 0, 1)
+    mesh._cr = cr
+    mesh._cz = cz
+
+    # Load cell basis vectors
+    nx = mesh.nx
+    ny = mesh.ny
+
+    cell_poloidal_basis = np.empty((nx, ny, 2), dtype=object)
+    for i in range(nx):
+        for j in range(ny):
+
+            # Work out cell's 2D parallel vector in the poloidal plane
+            if i == nx - 1:
+                # Special case for end of array, repeat previous calculation.
+                # This is because I don't have access to the gaurd cells.
+                xp_x = cr[i, j] - cr[i-1, j]
+                xp_y = cz[i, j] - cz[i-1, j]
+                norm = np.sqrt(xp_x**2 + xp_y**2)
+                cell_poloidal_basis[i, j, 0] = Point2D(xp_x/norm, xp_y/norm)
+            else:
+                xp_x = cr[i+1, j] - cr[i, j]
+                xp_y = cz[i+1, j] - cz[i, j]
+                norm = np.sqrt(xp_x**2 + xp_y**2)
+                cell_poloidal_basis[i, j, 0] = Point2D(xp_x/norm, xp_y/norm)
+
+            # Work out cell's 2D radial vector in the poloidal plane
+            if j == ny - 1:
+                # Special case for end of array, repeat previous calculation.
+                yr_x = cr[i, j] - cr[i, j-1]
+                yr_y = cz[i, j] - cz[i, j-1]
+                norm = np.sqrt(yr_x**2 + yr_y**2)
+                cell_poloidal_basis[i, j, 1] = Point2D(yr_x/norm, yr_y/norm)
+            else:
+                yr_x = cr[i, j+1] - cr[i, j]
+                yr_y = cz[i, j+1] - cz[i, j]
+                norm = np.sqrt(yr_x**2 + yr_y**2)
+                cell_poloidal_basis[i, j, 1] = Point2D(yr_x/norm, yr_y/norm)
+
+    mesh._poloidal_grid_basis = cell_poloidal_basis
+
+    return mesh

@@ -73,7 +73,7 @@ def load_solps_from_raw_output(simulation_path, debug=False):
         RuntimeError("No EIRENE fort.44 file found in SOLPS output directory")
 
     # Load SOLPS mesh geometry
-    mesh = SOLPSMesh.load_from_files(mesh_file_path=mesh_file_path, debug=debug)
+    mesh = load_mesh_from_files(mesh_file_path=mesh_file_path, debug=debug)
 
     header_dict, sim_info_dict, mesh_data_dict = load_b2f_file(b2_state_file, debug=debug)
 
@@ -121,3 +121,22 @@ def load_solps_from_raw_output(simulation_path, debug=False):
     sim._total_rad = eradt_data
 
     return sim
+
+
+def load_mesh_from_files(mesh_file_path, debug=False):
+    """
+    Load SOLPS grid description from B2 Eirene output file.
+
+    :param str filepath: full path for B2 eirene mesh description file
+    :param bool debug: flag for displaying textual debugging information.
+    :return: tuple of dictionaries. First is the header information such as the version, label, grid size, etc.
+      Second dictionary has a ndarray for each piece of data found in the file.
+    """
+    _, _, geom_data_dict = load_b2f_file(mesh_file_path, debug=debug)
+
+    cr_x = geom_data_dict['crx']
+    cr_z = geom_data_dict['cry']
+    vol = geom_data_dict['vol']
+
+    # build mesh object
+    return SOLPSMesh(cr_x, cr_z, vol)
