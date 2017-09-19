@@ -15,13 +15,13 @@
 # See the Licence for the specific language governing permissions and limitations
 # under the Licence.
 
+from raysect.optical.material.emitter.inhomogeneous import NumericalIntegrator
 from raysect.optical cimport World, Primitive, Ray, Spectrum, SpectralFunction, Point3D, Vector3D, AffineMatrix3D
 from raysect.optical.material.emitter cimport InhomogeneousVolumeEmitter
 
 from cherab.core.math.function cimport Function3D
 from cherab.core.math.mappers cimport AxisymmetricMapper
 from cherab.core.distribution cimport DistributionFunction
-from cherab.core.atomic.line cimport Line
 from cherab.core.model.spectra cimport add_gaussian_line, thermal_broadening
 
 
@@ -29,16 +29,18 @@ from cherab.core.model.spectra cimport add_gaussian_line, thermal_broadening
 DEF RECIP_4_PI = 0.7853981633974483
 
 
-cdef class BasicSolpsEmitter(InhomogeneousVolumeEmitter):
+cdef class BasicSolpsLineEmitter(InhomogeneousVolumeEmitter):
 
     cdef public Function3D emitter
     cdef public DistributionFunction electron_distribution
-    cdef public Line line
+    cdef public double wavelength, atomic_weight
 
-    def __init__(self, Line line, DistributionFunction electron_distribution, emitter_2D_grid, step=0.01):
+    def __init__(self, double wavelength, double atomic_weight, DistributionFunction electron_distribution,
+                 emitter_2D_grid, step=0.01):
 
-        super().__init__(step)
-        self.line = line
+        super().__init__(NumericalIntegrator(step))
+        self.wavelength = wavelength
+        self.atomic_weight = atomic_weight
         self.electron_distribution = electron_distribution
         self.emitter = AxisymmetricMapper(emitter_2D_grid)
 
@@ -53,6 +55,6 @@ cdef class BasicSolpsEmitter(InhomogeneousVolumeEmitter):
 
         te = self.electron_distribution.effective_temperature(x, y, z)  # electron temperature t_e(x, y, z)
         radiance = RECIP_4_PI * self.emitter.evaluate(x, y, z)
-        sigma = thermal_broadening(self.line.wavelength, te, self.line.element.atomic_weight)
-        return add_gaussian_line(radiance, self.line.wavelength, sigma, spectrum)
+        sigma = thermal_broadening(self.wavelength, te, self.atomic_weight)
+        return add_gaussian_line(radiance, self.wavelength, sigma, spectrum)
 

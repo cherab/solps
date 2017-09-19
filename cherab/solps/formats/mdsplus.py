@@ -85,8 +85,9 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     sim._radial_area = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.SY').data(), 0, 1)  # radial contact area
 
     # Load the neutral atom density from B2
-    neutral_dens_data = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.DAB2').data(), 0, 2)
-    sim._b2_neutral_densities = neutral_dens_data
+    dab2 = conn.get('\SOLPS::TOP.SNAPSHOT.DAB2')
+    if isinstance(dab2, np.ndarray):
+        sim._b2_neutral_densities = np.swapaxes(dab2.data(), 0, 2)
 
     sim._velocities_parallel = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.UA').data(), 0, 2)
     sim._velocities_radial = np.zeros((ni, nj, len(sim.species_list)))
@@ -103,8 +104,7 @@ def load_solps_from_mdsplus(mds_server, ref_number):
         charge = int(charge)
 
         # If neutral and B" atomic density available,  use B2 density, otherwise use fluid species density.
-        # if sim.b2_neutral_densities and charge == 0:
-        if charge == 0:
+        if charge == 0 and (sim._b2_neutral_densities != None):
             species_dens_data = sim.b2_neutral_densities[:, :, b2_neutral_i]
             b2_neutral_i += 1
         else:

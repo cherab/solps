@@ -41,6 +41,7 @@ _species_symbol_map = {
     'C': carbon,
     'He': helium,
     'N': nitrogen,
+    'Ne': neon,
     'Ar': argon,
     'Kr': krypton,
     'Xe': xenon,
@@ -370,7 +371,7 @@ class SOLPSSimulation:
         plt.ylim(yl, yu)
         plt.title("Radiated Power (W/m^3)")
 
-    def create_plasma(self):
+    def create_plasma(self, parent=None, transform=None, name=None):
         """
         Make a CHERAB plasma object from this SOLPS simulation.
 
@@ -378,7 +379,9 @@ class SOLPSSimulation:
         """
 
         mesh = self.mesh
-        plasma = Plasma(name="Plasma")
+        name = name or "SOLPS Plasma"
+        plasma = Plasma(parent=parent, transform=transform, name=name)
+        # TODO - add plasma geometry
 
         tri_index_lookup = self.mesh.triangle_index_lookup
         tri_to_grid = self.mesh.triangle_to_grid_map
