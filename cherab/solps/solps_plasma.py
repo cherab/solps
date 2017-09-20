@@ -22,7 +22,8 @@ from scipy.constants import atomic_mass, electron_mass
 
 # Raysect imports
 from raysect.core.math.interpolators import Discrete2DMesh
-from raysect.core import translate, Vector3D
+from raysect.core import translate, Vector3D, Node, AffineMatrix3D
+from raysect.primitive import Cylinder
 
 # CHERAB core imports
 from cherab.core import Plasma, Species, Maxwellian
@@ -375,13 +376,20 @@ class SOLPSSimulation:
         """
         Make a CHERAB plasma object from this SOLPS simulation.
 
+        :param Node parent: The plasma's parent node in the scenegraph, e.g. a World object.
+        :param AffineMatrix3D transform: Affine matrix describing the location and orientation
+        of the plasma in the world.
+        :param str name: User friendly name for this plasma (default = "SOLPS Plasma").
         :rtype: Plasma
         """
 
         mesh = self.mesh
         name = name or "SOLPS Plasma"
         plasma = Plasma(parent=parent, transform=transform, name=name)
-        # TODO - add plasma geometry
+        radius = mesh.mesh_extent['maxr']
+        height = mesh.mesh_extent['maxz'] - mesh.mesh_extent['minz']
+        plasma.geometry = Cylinder(radius, height)
+        plasma.geometry_transform = translate(0, 0, mesh.mesh_extent['minz'])
 
         tri_index_lookup = self.mesh.triangle_index_lookup
         tri_to_grid = self.mesh.triangle_to_grid_map
