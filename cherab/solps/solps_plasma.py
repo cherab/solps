@@ -22,8 +22,9 @@ from scipy.constants import atomic_mass, electron_mass
 
 # Raysect imports
 from raysect.core.math.interpolators import Discrete2DMesh
-from raysect.core import translate, Vector3D, Node, AffineMatrix3D
+from raysect.core import translate, Point3D, Vector3D, Node, AffineMatrix3D
 from raysect.primitive import Cylinder
+from raysect.optical import Spectrum
 
 # CHERAB core imports
 from cherab.core import Plasma, Species, Maxwellian
@@ -321,7 +322,7 @@ class SOLPSSimulation:
         for i, x in enumerate(xrange):
             for j, y in enumerate(yrange):
                 for emitter in emission_lines:
-                    emission_samples[j, i] += emitter.emission_at_point(x, 0.0, y)
+                    emission_samples[j, i] += emitter.emission(Point3D(x, 0.0, y), Vector3D(0, 0, 0), Spectrum(350, 700, 800)).total()
 
         if log:
             emission_samples = np.log(emission_samples)
