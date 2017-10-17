@@ -22,7 +22,7 @@ from raysect.optical.material.emitter cimport InhomogeneousVolumeEmitter
 from cherab.core.math.function cimport Function3D
 from cherab.core.math.mappers cimport AxisymmetricMapper
 from cherab.core.distribution cimport DistributionFunction
-from cherab.core.model.spectra cimport add_gaussian_line, thermal_broadening
+from cherab.core.model.lineshape cimport add_gaussian_line, thermal_broadening
 
 
 # RECIP_4_PI = 1 / (4 * pi)
