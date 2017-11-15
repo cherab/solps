@@ -397,7 +397,6 @@ class SOLPSSimulation:
 
         if isinstance(self._b_field_vectors, np.ndarray):
             plasma.b_field = SOLPSVectorFunction3D(tri_index_lookup, tri_to_grid, self._b_field_vectors_cartesian)
-            # plasma.b_field_cartesian = SOLPSVectorFunction3D(tri_index_lookup, tri_to_grid, self._b_field_vectors_cartesian)
         else:
             print('Warning! No magnetic field data available for this simulation.')
 
