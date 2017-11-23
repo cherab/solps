@@ -174,6 +174,14 @@ class SOLPSMesh:
         """
         return self._tri_index_loopup
 
+    def __getstate__(self):
+        state = {
+            'cr_r': self._r,
+            'cr_z': self._z,
+            'vol': self._vol,
+        }
+        return state
+
     def plot_mesh(self):
         """
         Plot the mesh grid geometry to a matplotlib figure.

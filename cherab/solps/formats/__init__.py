@@ -17,3 +17,4 @@
 
 from .mdsplus import load_solps_from_mdsplus
 from .raw_simulation_files import load_solps_from_raw_output
+from .raw_pickle import load_solps_from_pickle

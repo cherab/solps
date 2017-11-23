@@ -16,6 +16,7 @@
 # under the Licence.
 
 import re
+import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.constants import atomic_mass, electron_mass
@@ -34,6 +35,7 @@ from cherab.core.atomic.elements import hydrogen, deuterium, helium, beryllium, 
 
 # This SOLPS package imports
 from .solps_3d_functions import SOLPSFunction3D, SOLPSVectorFunction3D
+from .mesh_geometry import SOLPSMesh
 
 
 Q = 1.602E-19
@@ -238,6 +240,60 @@ class SOLPSSimulation:
             raise RuntimeError("EIRENE simulation data not available for this SOLPS simulation")
         else:
             return self._eirene
+
+    def __getstate__(self):
+        state = {
+            'mesh': self.mesh.__getstate__(),
+            'electron_temperature': self._electron_temperature,
+            'electron_density': self._electron_density,
+            'species_list': self._species_list,
+            'species_density': self._species_density,
+            'rad_par_flux': self._rad_par_flux,
+            'radial_area': self._radial_area,
+            'b2_neutral_densities': self._b2_neutral_densities,
+            'velocities_parallel': self._velocities_parallel,
+            'velocities_radial': self._velocities_radial,
+            'velocities_toroidal': self._velocities_toroidal,
+            'velocities_cartesian': self._velocities_cartesian,
+            'inside_mesh': self._inside_mesh,
+            'total_rad': self._total_rad,
+            'b_field_vectors': self._b_field_vectors,
+            'b_field_vectors_cartesian': self._b_field_vectors_cartesian,
+            'parallel_velocities': self._parallel_velocities,
+            'radial_velocities': self._radial_velocities,
+            'eirene_model': self._eirene_model,
+            'b2_model': self._b2_model,
+            'eirene': self._eirene
+        }
+        return state
+
+    def __setstate__(self, state):
+        self._electron_temperature = state['electron_temperature']
+        self._electron_density = state['electron_density']
+        self._species_list = state['species_list']
+        self._species_density = state['species_density']
+        self._rad_par_flux = state['rad_par_flux']
+        self._radial_area = state['radial_area']
+        self._b2_neutral_densities = state['b2_neutral_densities']
+        self._velocities_parallel = state['velocities_parallel']
+        self._velocities_radial = state['velocities_radial']
+        self._velocities_toroidal = state['velocities_toroidal']
+        self._velocities_cartesian = state['velocities_cartesian']
+        self._inside_mesh = state['inside_mesh']
+        self._total_rad = state['total_rad']
+        self._b_field_vectors = state['b_field_vectors']
+        self._b_field_vectors_cartesian = state['b_field_vectors_cartesian']
+        self._parallel_velocities = state['parallel_velocities']
+        self._radial_velocities = state['radial_velocities']
+        self._eirene_model = state['eirene_model']
+        self._b2_model = state['b2_model']
+        self._eirene = state['eirene']
+
+    def save(self, filename):
+
+        file_handle = open(filename, 'wb')
+        pickle.dump(self.__getstate__(), file_handle)
+        file_handle.close()
 
     def plot_electrons(self):
         """ Make a plot of the electron temperature and density in the SOLPS mesh plane. """
