@@ -28,7 +28,7 @@ from cherab.solps.solps_plasma import SOLPSSimulation
 
 _SPECIES_REGEX = '([a-zA-z]+)\+?([0-9]+)'
 
-
+# TODO: violates interface of SOLPSSimulation.... puts numpy arrays in the object where they should be function2D
 def load_solps_from_mdsplus(mds_server, ref_number):
     """
     Load a SOLPS simulation from a MDSplus server.
