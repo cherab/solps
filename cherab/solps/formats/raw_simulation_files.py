@@ -33,9 +33,13 @@ Q = 1.602E-19
 # key is nuclear charge Z and atomic mass AMU
 _popular_species = {
     (1, 2): deuterium,
-    (6, 12.011): carbon,
     (2, 4.003): helium,
+    (2, 4.0): helium,
+    (6, 12.011): carbon,
+    (6, 12.0): carbon,
     (7, 14.007): nitrogen,
+    (10, 20.0): neon,
+    (10, 20.1797): neon,
     (18, 39.948): argon,
     (36, 83.798): krypton,
     (54, 131.293): xenon
