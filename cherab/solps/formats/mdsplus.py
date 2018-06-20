@@ -158,12 +158,14 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     linerad = np.sum(linerad, axis=2)
     brmrad = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.RQBRM').data(), 0, 2)
     brmrad = np.sum(brmrad, axis=2)
+    neurad = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.ENEUTRAD').data(), 0, 2)
+    neurad = np.abs(np.sum(neurad, axis=2))
 
     total_rad_data = np.zeros(vol.shape)
     ni, nj = vol.shape
     for i in range(ni):
         for j in range(nj):
-            total_rad_data[i, j] = (linerad[i, j] + brmrad[i, j]) / vol[i, j]
+            total_rad_data[i, j] = (linerad[i, j] + brmrad[i, j] + neurad[i, j]) / vol[i, j]
     sim._total_rad = total_rad_data
 
     return sim
