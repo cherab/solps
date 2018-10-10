@@ -177,6 +177,7 @@ class SOLPSSimulation:
         else:
             return self._total_rad
 
+    # TODO: decide is this a 2D or 3D interface?
     @property
     def total_radiation_volume(self):
         """
@@ -191,7 +192,8 @@ class SOLPSSimulation:
 
         mapped_radiation_data = _map_data_onto_triangles(self._total_rad)
         radiation_mesh_2d = Discrete2DMesh(self.mesh.vertex_coords, self.mesh.triangles, mapped_radiation_data, limit=False)
-        return AxisymmetricMapper(radiation_mesh_2d)
+        # return AxisymmetricMapper(radiation_mesh_2d)
+        return radiation_mesh_2d
 
     @property
     def parallel_velocities(self):
