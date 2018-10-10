@@ -158,8 +158,14 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     linerad = np.sum(linerad, axis=2)
     brmrad = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.RQBRM').data(), 0, 2)
     brmrad = np.sum(brmrad, axis=2)
-    neurad = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.ENEUTRAD').data(), 0, 2)
-    neurad = np.abs(np.sum(neurad, axis=2))
+    neurad = conn.get('\SOLPS::TOP.SNAPSHOT.ENEUTRAD').data()
+    if neurad is not None:  # need to cope with fact that neurad may not be present!!!
+        if len(neurad.shape) == 3:
+            neurad = np.swapaxes(np.abs(np.sum(neurad, axis=2)), 0, 1)
+        else:
+            neurad = np.swapaxes(np.abs(neurad), 0, 1)
+    else:
+        neurad = np.zeros(brmrad.shape)
 
     total_rad_data = np.zeros(vol.shape)
     ni, nj = vol.shape
