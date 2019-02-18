@@ -80,7 +80,12 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     ############################
 
     # Master list of species, e.g. ['D0', 'D+1', 'C0', 'C+1', ...
-    sim._species_list = conn.get('\SOLPS::TOP.IDENT.SPECIES').data().decode('UTF-8').split()
+    species_list = conn.get('\SOLPS::TOP.IDENT.SPECIES').data()
+    try:
+        species_list = species_list.decode('UTF-8')
+    except AttributeError:  # Already a string
+        pass
+    sim._species_list = species_list.split()
     sim._species_density = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.NA').data(), 0, 2)
     sim._rad_par_flux = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.FNAY').data(), 0, 2)  # radial particle flux
     sim._radial_area = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.SY').data(), 0, 1)  # radial contact area
