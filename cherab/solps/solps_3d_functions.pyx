@@ -1,3 +1,4 @@
+# cython: language_level=3
 
 # Copyright 2016-2018 Euratom
 # Copyright 2016-2018 United Kingdom Atomic Energy Authority
