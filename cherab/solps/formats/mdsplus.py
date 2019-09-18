@@ -179,7 +179,7 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     for i in range(ni):
         for j in range(nj):
             total_rad_data[i, j] = (linerad[i, j] + brmrad[i, j] + neurad[i, j]) / vol[i, j]
-    sim.total_radiation = total_rad_data
+    sim._total_rad = total_rad_data
 
     return sim
 
