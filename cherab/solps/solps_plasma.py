@@ -55,7 +55,7 @@ _species_symbol_map = {
 
 _SPECIES_REGEX = '([a-zA-z]+)\+?([0-9]+)'
 
-
+# TODO: this interface is half broken - some routines expect internal data as arrays, others as function 3d
 class SOLPSSimulation:
 
     def __init__(self, mesh):
@@ -156,7 +156,7 @@ class SOLPSSimulation:
         return self._velocities_cartesian
 
     @property
-    def inside_mesh(self):
+    def inside_volume_mesh(self):
         """
         Function3D for testing if point p is inside the simulation mesh.
         """
@@ -168,7 +168,7 @@ class SOLPSSimulation:
     @property
     def total_radiation(self):
         """
-        Total radiation Function3D
+        Total radiation
 
         This is not calculated from the CHERAB emission models, instead it comes from the SOLPS output data.
         Is calculated from the sum of all integrated line emission and all Bremmstrahlung. The signals used are 'RQRAD'
@@ -179,17 +179,23 @@ class SOLPSSimulation:
         else:
             return self._total_rad
 
-    @total_radiation.setter
-    def total_radiation(self, value):
+    # TODO: decide is this a 2D or 3D interface?
+    @property
+    def total_radiation_volume(self):
+        """
+        Total radiation volume.
 
-        radiation_data = np.array(value)
+        This is not calculated from the CHERAB emission models, instead it comes from the SOLPS output data.
+        Is calculated from the sum of all integrated line emission and all Bremmstrahlung. The signals used are 'RQRAD'
+        and 'RQBRM'. Final output is in W/str?
 
-        if not radiation_data.shape == (self.mesh.nx, self.mesh.ny):
-            raise ValueError("Total radiation data array must have same shape as mesh (nx, ny).")
+        :returns: Function3D
+        """
 
-        mapped_radiation_data = _map_data_onto_triangles(radiation_data)
+        mapped_radiation_data = _map_data_onto_triangles(self._total_rad)
         radiation_mesh_2d = Discrete2DMesh(self.mesh.vertex_coords, self.mesh.triangles, mapped_radiation_data, limit=False)
-        self._total_rad = AxisymmetricMapper(radiation_mesh_2d)
+        # return AxisymmetricMapper(radiation_mesh_2d)
+        return radiation_mesh_2d
 
     @property
     def parallel_velocities(self):
@@ -297,139 +303,139 @@ class SOLPSSimulation:
         pickle.dump(self.__getstate__(), file_handle)
         file_handle.close()
 
-    def plot_electrons(self):
-        """ Make a plot of the electron temperature and density in the SOLPS mesh plane. """
-
-        me = self.mesh.mesh_extent
-        xl, xu = (me['minr'], me['maxr'])
-        yl, yu = (me['minz'], me['maxz'])
-
-        te_samples = np.zeros((500, 500))
-        ne_samples = np.zeros((500, 500))
-
-        xrange = np.linspace(xl, xu, 500)
-        yrange = np.linspace(yl, yu, 500)
-
-        plasma = self.plasma
-        for i, x in enumerate(xrange):
-            for j, y in enumerate(yrange):
-                ne_samples[j, i] = plasma.electron_distribution.density(x, 0.0, y)
-                te_samples[j, i] = plasma.electron_distribution.effective_temperature(x, 0.0, y)
-
-        plt.figure()
-        plt.imshow(ne_samples, extent=[xl, xu, yl, yu], origin='lower')
-        plt.colorbar()
-        plt.xlim(xl, xu)
-        plt.ylim(yl, yu)
-        plt.title("electron density")
-        plt.figure()
-        plt.imshow(te_samples, extent=[xl, xu, yl, yu], origin='lower')
-        plt.colorbar()
-        plt.xlim(xl, xu)
-        plt.ylim(yl, yu)
-        plt.title("electron temperature")
-
-    def plot_species_density(self, species, ionisation):
-        """
-        Make a plot of the requested species density in the SOLPS mesh plane.
-
-        :param Element species: The species to plot.
-        :param int ionisation: The charge state of the species to plot.
-        """
-
-        species_dist = self.plasma.get_species(species, ionisation)
-
-        me = self.mesh.mesh_extent
-        xl, xu = (me['minr'], me['maxr'])
-        yl, yu = (me['minz'], me['maxz'])
-        species_samples = np.zeros((500, 500))
-
-        xrange = np.linspace(xl, xu, 500)
-        yrange = np.linspace(yl, yu, 500)
-
-        for i, x in enumerate(xrange):
-            for j, y in enumerate(yrange):
-                species_samples[j, i] = species_dist.distribution.density(x, 0.0, y)
-
-        plt.figure()
-        plt.imshow(species_samples, extent=[xl, xu, yl, yu], origin='lower')
-        plt.colorbar()
-        plt.xlim(xl, xu)
-        plt.ylim(yl, yu)
-        plt.title("Species {} - stage {} - density".format(species.name, ionisation))
-
-    def plot_pec_emission_lines(self, emission_lines, title="", vmin=None, vmax=None, log=False):
-        """
-        Make a plot of the given PEC emission lines
-
-        :param list emission_lines: List of PEC emission lines.
-        :param str title: The title of the plot.
-        :param float vmin: The minimum value for clipping the plots (default=None).
-        :param float vmax: The maximum value for clipping the plots (default=None).
-        :param bool log: Toggle a log plot for the data (default=False).
-        """
-
-        me = self.mesh.mesh_extent
-        xl, xu = (me['minr'], me['maxr'])
-        yl, yu = (me['minz'], me['maxz'])
-        emission_samples = np.zeros((500, 500))
-
-        xrange = np.linspace(xl, xu, 500)
-        yrange = np.linspace(yl, yu, 500)
-
-        for i, x in enumerate(xrange):
-            for j, y in enumerate(yrange):
-                for emitter in emission_lines:
-                    emission_samples[j, i] += emitter.emission(Point3D(x, 0.0, y), Vector3D(0, 0, 0), Spectrum(350, 700, 800)).total()
-
-        if log:
-            emission_samples = np.log(emission_samples)
-        plt.figure()
-        plt.imshow(emission_samples, extent=[xl, xu, yl, yu], origin='lower', vmin=vmin, vmax=vmax)
-        plt.colorbar()
-        plt.xlim(xl, xu)
-        plt.ylim(yl, yu)
-        plt.title(title)
-
-    def plot_radiated_power(self):
-        """
-        Make a plot of the given PEC emission lines
-
-        :param list emission_lines: List of PEC emission lines.
-        :param str title: The title of the plot.
-        """
-
-        mesh = self.mesh
-        me = mesh.mesh_extent
-        total_rad = self.total_radiation
-
-        xl, xu = (me['minr'], me['maxr'])
-        yl, yu = (me['minz'], me['maxz'])
-
-        # tri_index_lookup = mesh.triangle_index_lookup
-
-        emission_samples = np.zeros((500, 500))
-
-        xrange = np.linspace(xl, xu, 500)
-        yrange = np.linspace(yl, yu, 500)
-
-        for i, x in enumerate(xrange):
-            for j, y in enumerate(yrange):
-
-                try:
-                    # k, l = mesh.triangle_to_grid_map[int(tri_index_lookup(x, y))]
-                    # emission_samples[i, j] = total_rad[k, l]
-                    emission_samples[j, i] = total_rad(x, 0, y)
-
-                except ValueError:
-                    continue
-
-        plt.figure()
-        plt.imshow(emission_samples, extent=[xl, xu, yl, yu], origin='lower')
-        plt.colorbar()
-        plt.xlim(xl, xu)
-        plt.ylim(yl, yu)
-        plt.title("Radiated Power (W/m^3)")
+    # def plot_electrons(self):
+    #     """ Make a plot of the electron temperature and density in the SOLPS mesh plane. """
+    #
+    #     me = self.mesh.mesh_extent
+    #     xl, xu = (me['minr'], me['maxr'])
+    #     yl, yu = (me['minz'], me['maxz'])
+    #
+    #     te_samples = np.zeros((500, 500))
+    #     ne_samples = np.zeros((500, 500))
+    #
+    #     xrange = np.linspace(xl, xu, 500)
+    #     yrange = np.linspace(yl, yu, 500)
+    #
+    #     plasma = self.plasma
+    #     for i, x in enumerate(xrange):
+    #         for j, y in enumerate(yrange):
+    #             ne_samples[j, i] = plasma.electron_distribution.density(x, 0.0, y)
+    #             te_samples[j, i] = plasma.electron_distribution.effective_temperature(x, 0.0, y)
+    #
+    #     plt.figure()
+    #     plt.imshow(ne_samples, extent=[xl, xu, yl, yu], origin='lower')
+    #     plt.colorbar()
+    #     plt.xlim(xl, xu)
+    #     plt.ylim(yl, yu)
+    #     plt.title("electron density")
+    #     plt.figure()
+    #     plt.imshow(te_samples, extent=[xl, xu, yl, yu], origin='lower')
+    #     plt.colorbar()
+    #     plt.xlim(xl, xu)
+    #     plt.ylim(yl, yu)
+    #     plt.title("electron temperature")
+    #
+    # def plot_species_density(self, species, ionisation):
+    #     """
+    #     Make a plot of the requested species density in the SOLPS mesh plane.
+    #
+    #     :param Element species: The species to plot.
+    #     :param int ionisation: The charge state of the species to plot.
+    #     """
+    #
+    #     species_dist = self.plasma.get_species(species, ionisation)
+    #
+    #     me = self.mesh.mesh_extent
+    #     xl, xu = (me['minr'], me['maxr'])
+    #     yl, yu = (me['minz'], me['maxz'])
+    #     species_samples = np.zeros((500, 500))
+    #
+    #     xrange = np.linspace(xl, xu, 500)
+    #     yrange = np.linspace(yl, yu, 500)
+    #
+    #     for i, x in enumerate(xrange):
+    #         for j, y in enumerate(yrange):
+    #             species_samples[j, i] = species_dist.distribution.density(x, 0.0, y)
+    #
+    #     plt.figure()
+    #     plt.imshow(species_samples, extent=[xl, xu, yl, yu], origin='lower')
+    #     plt.colorbar()
+    #     plt.xlim(xl, xu)
+    #     plt.ylim(yl, yu)
+    #     plt.title("Species {} - stage {} - density".format(species.name, ionisation))
+    #
+    # def plot_pec_emission_lines(self, emission_lines, title="", vmin=None, vmax=None, log=False):
+    #     """
+    #     Make a plot of the given PEC emission lines
+    #
+    #     :param list emission_lines: List of PEC emission lines.
+    #     :param str title: The title of the plot.
+    #     :param float vmin: The minimum value for clipping the plots (default=None).
+    #     :param float vmax: The maximum value for clipping the plots (default=None).
+    #     :param bool log: Toggle a log plot for the data (default=False).
+    #     """
+    #
+    #     me = self.mesh.mesh_extent
+    #     xl, xu = (me['minr'], me['maxr'])
+    #     yl, yu = (me['minz'], me['maxz'])
+    #     emission_samples = np.zeros((500, 500))
+    #
+    #     xrange = np.linspace(xl, xu, 500)
+    #     yrange = np.linspace(yl, yu, 500)
+    #
+    #     for i, x in enumerate(xrange):
+    #         for j, y in enumerate(yrange):
+    #             for emitter in emission_lines:
+    #                 emission_samples[j, i] += emitter.emission(Point3D(x, 0.0, y), Vector3D(0, 0, 0), Spectrum(350, 700, 800)).total()
+    #
+    #     if log:
+    #         emission_samples = np.log(emission_samples)
+    #     plt.figure()
+    #     plt.imshow(emission_samples, extent=[xl, xu, yl, yu], origin='lower', vmin=vmin, vmax=vmax)
+    #     plt.colorbar()
+    #     plt.xlim(xl, xu)
+    #     plt.ylim(yl, yu)
+    #     plt.title(title)
+    #
+    # def plot_radiated_power(self):
+    #     """
+    #     Make a plot of the given PEC emission lines
+    #
+    #     :param list emission_lines: List of PEC emission lines.
+    #     :param str title: The title of the plot.
+    #     """
+    #
+    #     mesh = self.mesh
+    #     me = mesh.mesh_extent
+    #     total_rad = self.total_radiation
+    #
+    #     xl, xu = (me['minr'], me['maxr'])
+    #     yl, yu = (me['minz'], me['maxz'])
+    #
+    #     # tri_index_lookup = mesh.triangle_index_lookup
+    #
+    #     emission_samples = np.zeros((500, 500))
+    #
+    #     xrange = np.linspace(xl, xu, 500)
+    #     yrange = np.linspace(yl, yu, 500)
+    #
+    #     for i, x in enumerate(xrange):
+    #         for j, y in enumerate(yrange):
+    #
+    #             try:
+    #                 # k, l = mesh.triangle_to_grid_map[int(tri_index_lookup(x, y))]
+    #                 # emission_samples[i, j] = total_rad[k, l]
+    #                 emission_samples[j, i] = total_rad(x, 0, y)
+    #
+    #             except ValueError:
+    #                 continue
+    #
+    #     plt.figure()
+    #     plt.imshow(emission_samples, extent=[xl, xu, yl, yu], origin='lower')
+    #     plt.colorbar()
+    #     plt.xlim(xl, xu)
+    #     plt.ylim(yl, yu)
+    #     plt.title("Radiated Power (W/m^3)")
 
     def create_plasma(self, parent=None, transform=None, name=None):
         """

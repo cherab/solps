@@ -30,7 +30,7 @@ from cherab.solps.solps_plasma import SOLPSSimulation
 
 _SPECIES_REGEX = '([a-zA-z]+)\+?([0-9]+)'
 
-
+# TODO: violates interface of SOLPSSimulation.... puts numpy arrays in the object where they should be function2D
 def load_solps_from_mdsplus(mds_server, ref_number):
     """
     Load a SOLPS simulation from a MDSplus server.
@@ -82,7 +82,12 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     ############################
 
     # Master list of species, e.g. ['D0', 'D+1', 'C0', 'C+1', ...
-    sim._species_list = conn.get('\SOLPS::TOP.IDENT.SPECIES').data().decode('UTF-8').split()
+    species_list = conn.get('\SOLPS::TOP.IDENT.SPECIES').data()
+    try:
+        species_list = species_list.decode('UTF-8')
+    except AttributeError:  # Already a string
+        pass
+    sim._species_list = species_list.split()
     sim._species_density = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.NA').data(), 0, 2)
     sim._rad_par_flux = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.FNAY').data(), 0, 2)  # radial particle flux
     sim._radial_area = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.SY').data(), 0, 1)  # radial contact area
@@ -160,12 +165,20 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     linerad = np.sum(linerad, axis=2)
     brmrad = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.RQBRM').data(), 0, 2)
     brmrad = np.sum(brmrad, axis=2)
+    neurad = conn.get('\SOLPS::TOP.SNAPSHOT.ENEUTRAD').data()
+    if neurad is not None:  # need to cope with fact that neurad may not be present!!!
+        if len(neurad.shape) == 3:
+            neurad = np.swapaxes(np.abs(np.sum(neurad, axis=2)), 0, 1)
+        else:
+            neurad = np.swapaxes(np.abs(neurad), 0, 1)
+    else:
+        neurad = np.zeros(brmrad.shape)
 
     total_rad_data = np.zeros(vol.shape)
     ni, nj = vol.shape
     for i in range(ni):
         for j in range(nj):
-            total_rad_data[i, j] = (linerad[i, j] + brmrad[i, j]) / vol[i, j]
+            total_rad_data[i, j] = (linerad[i, j] + brmrad[i, j] + neurad[i, j]) / vol[i, j]
     sim._total_rad = total_rad_data
 
     return sim

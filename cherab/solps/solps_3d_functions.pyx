@@ -43,6 +43,7 @@ cdef class SOLPSFunction3D(Function3D):
 
     def __init__(self, Discrete2DMesh triangle_index_lookup, int[:,:] triangle_to_grid_map, double[:,:] grid_values):
 
+        # todo: this is unsafe - converting an int to a double and performing operations - rounding errors
         self._triangle_index_lookup = AxisymmetricMapper(triangle_index_lookup)
         self._triangle_to_grid_map = triangle_to_grid_map
         self._grid_values = grid_values
@@ -76,6 +77,7 @@ cdef class SOLPSVectorFunction3D(VectorFunction3D):
 
     def __init__(self, Discrete2DMesh triangle_index_lookup, object triangle_to_grid_map, object grid_vectors):
 
+        # todo: this is unsafe - converting an int to a double and performing operations - rounding errors
         self._triangle_index_lookup = AxisymmetricMapper(triangle_index_lookup)
         self._triangle_to_grid_map = triangle_to_grid_map
         self._grid_vectors = grid_vectors

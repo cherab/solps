@@ -25,14 +25,17 @@ from raysect.core import translate
 from raysect.primitive import Cylinder
 from raysect.optical.material.emitter.inhomogeneous import NumericalIntegrator
 
+cimport cython
+
 
 cdef class SOLPSTotalRadiatedPower(InhomogeneousVolumeEmitter):
 
-    def __init__(self, object solps_simulation, step=0.01):
+    def __init__(self, object solps_simulation, double vertical_offset=0.0, step=0.01):
         super().__init__(NumericalIntegrator(step=step))
 
-        self.inside_simulation = solps_simulation.inside_mesh
-        self.total_rad = solps_simulation.total_radiation
+        self.vertical_offset = vertical_offset
+        self.inside_simulation = solps_simulation.inside_volume_mesh
+        self.total_rad = solps_simulation.total_radiation_volume
 
     def __call__(self, x, y , z):
 
@@ -41,27 +44,24 @@ cdef class SOLPSTotalRadiatedPower(InhomogeneousVolumeEmitter):
 
         return self.total_rad.evaluate(x, y, z)
 
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    @cython.initializedcheck(False)
     cpdef Spectrum emission_function(self, Point3D point, Vector3D direction, Spectrum spectrum,
                                      World world, Ray ray, Primitive primitive,
                                      AffineMatrix3D world_to_local, AffineMatrix3D local_to_world):
 
         cdef:
-            double x, y, z, wvl_range
-            Point3D world_point
+            double offset_z, wvl_range
 
-        world_point = point.transform(local_to_world)
-        x = world_point.x
-        y = world_point.y
-        z = world_point.z
-
-        if self.inside_simulation.evaluate(x, y, z) < 1.0:
+        offset_z =  point.z + self.vertical_offset
+        if self.inside_simulation.evaluate(point.x, point.y, offset_z) < 1.0:
             return spectrum
 
         wvl_range = ray.max_wavelength - ray.min_wavelength
-        spectrum.samples[0] = self.total_rad.evaluate(x, y, z) / (4 * pi) / wvl_range
+        spectrum.samples_mv[:] = self.total_rad.evaluate(point.x, point.y, offset_z) / (4 * pi * wvl_range * spectrum.bins)
 
         return spectrum
-
 
 def solps_total_radiated_power(world, solps_simulation, step=0.01):
     mesh = solps_simulation.mesh
@@ -71,7 +71,7 @@ def solps_total_radiated_power(world, solps_simulation, step=0.01):
     lower_z = mesh.mesh_extent['minz']
 
     main_plasma_cylinder = Cylinder(outer_radius, plasma_height, parent=world,
-                                    material=SOLPSTotalRadiatedPower(solps_simulation, step=step),
+                                    material=SOLPSTotalRadiatedPower(solps_simulation, vertical_offset=lower_z, step=step),
                                     transform=translate(0, 0, lower_z))
 
     return main_plasma_cylinder
