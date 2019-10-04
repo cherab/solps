@@ -167,3 +167,5 @@ plt.xlim(xl, xu)
 plt.ylim(yl, yu)
 plt.title("D1 velocity")
 
+plt.ioff()
+plt.show()
