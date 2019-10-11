@@ -22,12 +22,11 @@ from collections import namedtuple
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon
+from matplotlib.collections import PatchCollection
 from raysect.core.math.interpolators import Discrete2DMesh
 
 INFINITY = 1E99
-
-vertex = namedtuple("vertex", "x y")
-mesh_extent = namedtuple("mesh_extent", "minr maxr minz maxz")
 
 
 class SOLPSMesh:
@@ -189,15 +188,14 @@ class SOLPSMesh:
         Plot the mesh grid geometry to a matplotlib figure.
         """
         fig, ax = plt.subplots()
+        patches = []
         for triangle in self.triangles:
-            i1, i2, i3 = triangle
-            v1 = vertex(*self.vertex_coords[i1])
-            v2 = vertex(*self.vertex_coords[i2])
-            v3 = vertex(*self.vertex_coords[i3])
-
-            plt.plot([v1.x, v2.x, v3.x, v1.x], [v1.y, v2.y, v3.y, v1.y], 'b')
-
-        plt.axis('equal')
+            vertices = self.vertex_coords[triangle]
+            patches.append(Polygon(vertices, closed=True))
+        p = PatchCollection(patches, facecolors='none', edgecolors='b')
+        ax.add_collection(p)
+        ax.axis('equal')
+        return ax
 
         # Code for plotting vessel geometry if available
         # for i in range(vessel.shape[0]):
