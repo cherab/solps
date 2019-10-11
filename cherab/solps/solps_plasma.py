@@ -276,6 +276,7 @@ class SOLPSSimulation:
         return state
 
     def __setstate__(self, state):
+        self.mesh = SOLPSMesh(**state['mesh'])
         self._electron_temperature = state['electron_temperature']
         self._electron_density = state['electron_density']
         self._species_list = state['species_list']
