@@ -47,7 +47,7 @@ for i, x in enumerate(xrange):
         te_samples[j, i] = plasma.electron_distribution.effective_temperature(x, 0.0, y)
         ni_samples[j, i] = d0.distribution.density(x, 0.0, y)
         n1_samples[j, i] = d1.distribution.density(x, 0.0, y)
-        inside_samples[j, i] = sim.inside_mesh(x, 0.0, y)
+        inside_samples[j, i] = sim.inside_volume_mesh(x, 0.0, y)
 
 plt.figure()
 plt.imshow(ne_samples, extent=[xl, xu, yl, yu], origin='lower')
