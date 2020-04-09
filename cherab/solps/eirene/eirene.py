@@ -231,24 +231,6 @@ class Eirene:
         return self._pem
 
     @property
-    def pea(self):
-        """
-        Atomic Poloidal Energy Flux
-
-        :rtype: np.ndarray
-        """
-        return self._pea
-
-    @property
-    def pem(self):
-        """
-        Molecular Poloidal Energy Flux
-
-        :rtype: np.ndarray
-        """
-        return self._pem
-
-    @property
     def emist(self):
         """
         Total Halpha Emission (including molecules)
