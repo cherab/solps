@@ -114,7 +114,7 @@ def load_solps_from_raw_output(simulation_path, debug=False):
     sim._inside_mesh = inside_outside
 
     # Load total radiated power from EIRENE output file
-    eirene = Eirene(eirene_fort44_file)
+    eirene = Eirene(eirene_fort44_file, debug=debug)
     sim._eirene = eirene
 
     # Note EIRENE data grid is slightly smaller than SOLPS grid, for example (98, 38) => (96, 36)
