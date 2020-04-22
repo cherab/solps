@@ -21,6 +21,7 @@ import os
 import copy
 import numpy as np
 from scipy.io import netcdf
+from scipy.constants import elementary_charge
 from raysect.core.math import Discrete2DMesh
 
 from cherab.core.math.mappers import AxisymmetricMapper
@@ -31,7 +32,7 @@ from cherab.solps.eirene import Eirene
 from cherab.solps.mesh_geometry import SOLPSMesh
 from cherab.solps.solps_plasma import SOLPSSimulation
 
-Q = 1.602E-19
+Q = elementary_charge
 
 # key is nuclear charge Z and atomic mass AMU
 _popular_species = {
