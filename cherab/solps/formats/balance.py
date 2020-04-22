@@ -109,8 +109,7 @@ def load_solps_from_balance(balance_filename):
         sim.species_list.append(species.symbol + str(charge))
 
     tmp = copy.deepcopy(fhandle.variables['na'].data)
-    tmp = swapaxes(tmp,0,2)
-    tmp = swapaxes(tmp,0,1)
+    tmp = np.moveaxis(tmp, 0, -1)
     sim._species_density = tmp
 
     # Make Mesh Interpolator function for inside/outside mesh test.
