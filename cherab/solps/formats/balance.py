@@ -156,7 +156,8 @@ def load_solps_from_balance(balance_filename):
         
         potential_loss = np.sum(fhandle.variables['b2stel_sna_ion_bal'].data,axis=0)/vol
         
-        sim._total_rad = np.abs(13.6*Q*potential_loss-b2_ploss)
+	# This will be negative (energy sink); multiply by -1
+        sim._total_rad = -1.0*(13.6*Q*potential_loss-b2_ploss)
 	
     fhandle.close()	
 
