@@ -91,7 +91,7 @@ def load_solps_from_balance(balance_filename):
 
         # Extract the nuclear charge	
         if fhandle.variables['species'].data[i,1] == b'D':
-	        zn = 1
+            zn = 1
         if fhandle.variables['species'].data[i,1] == b'C':
             zn = 6
         if fhandle.variables['species'].data[i,1] == b'N':
