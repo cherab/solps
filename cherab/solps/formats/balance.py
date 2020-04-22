@@ -19,7 +19,7 @@
 
 import os
 import copy
-from numpy import abs,sum,swapaxes,ones,arange
+import numpy as np
 from scipy.io import netcdf
 from raysect.core.math import Discrete2DMesh
 
@@ -66,10 +66,10 @@ def load_solps_from_balance(balance_filename, debug=False):
     vol = copy.deepcopy(fhandle.variables['vol'].data)
 	
     # Re-arrange the array dimensions in the way CHERAB expects...
-    cr_x = swapaxes(cr_x,0,2)
-    cr_x = swapaxes(cr_x,0,1)
-    cr_z = swapaxes(cr_z,0,2)
-    cr_z = swapaxes(cr_z,0,1)
+    cr_x = np.swapaxes(cr_x,0,2)
+    cr_x = np.swapaxes(cr_x,0,1)
+    cr_z = np.swapaxes(cr_z,0,2)
+    cr_z = np.swapaxes(cr_z,0,1)
 	
     # Create the SOLPS mesh
     mesh = SOLPSMesh(cr_x,cr_z,vol)	
@@ -145,28 +145,25 @@ def load_solps_from_balance(balance_filename, debug=False):
         
         # Electron energy loss due to interactions with neutrals
         if 'eirene_mc_eael_she_bal' in fhandle.variables.keys():
-            eirene_ecoolrate = sum(fhandle.variables['eirene_mc_eael_she_bal'].data,axis=0)/vol
+            eirene_ecoolrate = np.sum(fhandle.variables['eirene_mc_eael_she_bal'].data,axis=0)/vol
             
         # Ionisation rate from EIRENE, needed to calculate the energy loss to overcome the ionisation potential of atoms
         if 'eirene_mc_papl_sna_bal' in fhandle.variables.keys():
-            eirene_potential_loss = 13.6*sum(fhandle.variables['eirene_mc_papl_sna_bal'].data,axis=(0))[1,:,:]*Q/vol
+            eirene_potential_loss = 13.6*np.sum(fhandle.variables['eirene_mc_papl_sna_bal'].data,axis=(0))[1,:,:]*Q/vol
         
         # This will be negative (energy sink); take absolute valu
-        sim._total_rad = abs(b2_ploss+(eirene_ecoolrate-eirene_potential_loss))
+        sim._total_rad = np.abs(b2_ploss+(eirene_ecoolrate-eirene_potential_loss))
         
     else:
-        #print(b2_ploss.shape)
-        #print(cr_x.shape)
-        #print(sum(b2_ploss,axis=0).shape)
-        
+ 
         # Total radiated power from B2, not including neutrals
-        b2_ploss = sum(fhandle.variables['b2stel_she_bal'].data,axis=0)/vol
+        b2_ploss = np.sum(fhandle.variables['b2stel_she_bal'].data,axis=0)/vol
         
-        potential_loss = sum(fhandle.variables['b2stel_sna_ion_bal'].data,axis=0)/vol
+        potential_loss = np.sum(fhandle.variables['b2stel_sna_ion_bal'].data,axis=0)/vol
         
-        #rad_dens = (-sum(b2stel_she_bal,3)+13.6*Q*b2stel_sna_ion_bal[:,:,0])/vol
+        #rad_dens = (-np.sum(b2stel_she_bal,3)+13.6*Q*b2stel_sna_ion_bal[:,:,0])/vol
         
-        sim._total_rad = abs(13.6*Q*potential_loss-b2_ploss)
+        sim._total_rad = np.abs(13.6*Q*potential_loss-b2_ploss)
 	
     fhandle.close()	
 
