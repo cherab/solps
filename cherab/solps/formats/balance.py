@@ -119,12 +119,7 @@ def load_solps_from_balance(balance_filename):
 
     
     # Load the neutrals data
-    D0_indx = None
-    
-    if 'D0' in sim.species_list:
-        for i in np.arange(len(sim.species_list)):
-            if sim.species_list[i] == 'D0':
-                D0_indx = i
+    D0_indx = sim.species_list.index('D0')
 
     # Replace the deuterium neutrals density (from the fluid neutrals model by default) with
     # the values calculated by EIRENE - do the same for other neutrals?
