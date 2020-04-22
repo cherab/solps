@@ -59,9 +59,9 @@ def load_solps_from_balance(balance_filename):
     fhandle = netcdf.netcdf_file(balance_filename,'r')
 	
     # Load SOLPS mesh geometry
-    cr_x = copy.deepcopy(fhandle.variables['crx'].data)
-    cr_z = copy.deepcopy(fhandle.variables['cry'].data)
-    vol = copy.deepcopy(fhandle.variables['vol'].data)
+    cr_x = fhandle.variables['crx'].data.copy()
+    cr_z = fhandle.variables['cry'].data.copy()
+    vol = fhandle.variables['vol'].data.copy()
 	
     # Re-arrange the array dimensions in the way CHERAB expects...
     cr_x = np.moveaxis(cr_x, 0, -1)
@@ -77,8 +77,8 @@ def load_solps_from_balance(balance_filename):
     # TODO: add code to load SOLPS velocities and magnetic field from files
 
     # Load electron species
-    sim._electron_temperature = copy.deepcopy(fhandle.variables['te'].data)/Q
-    sim._electron_density = copy.deepcopy(fhandle.variables['ne'].data)
+    sim._electron_temperature = fhandle.variables['te'].data.copy()/Q
+    sim._electron_density = fhandle.variables['ne'].data.copy()
 
     ##########################################
     # Load each plasma species in simulation #
@@ -108,7 +108,7 @@ def load_solps_from_balance(balance_filename):
         # If we only need to populate species_list, there is probably a faster way to do this...		
         sim.species_list.append(species.symbol + str(charge))
 
-    tmp = copy.deepcopy(fhandle.variables['na'].data)
+    tmp = fhandle.variables['na'].data.copy()
     tmp = np.moveaxis(tmp, 0, -1)
     sim._species_density = tmp
 
@@ -126,7 +126,7 @@ def load_solps_from_balance(balance_filename):
     # Replace the deuterium neutrals density (from the fluid neutrals model by default) with
     # the values calculated by EIRENE - do the same for other neutrals?
     if 'dab2' in fhandle.variables.keys():
-        sim.species_density[:,:,D0_indx] = copy.deepcopy(fhandle.variables['dab2'].data[0,:,0:-2])
+        sim.species_density[:,:,D0_indx] = fhandle.variables['dab2'].data[0,:,0:-2]
         eirene_run = True
     else:
         eirene_run = False
@@ -135,7 +135,7 @@ def load_solps_from_balance(balance_filename):
     
     if eirene_run:
         # Total radiated power from B2, not including neutrals
-        b2_ploss = fhandle.variables['b2stel_she_bal'].data/vol
+        b2_ploss = fhandle.variables['b2stel_she_bal'].data.copy()/vol
         
         # Electron energy loss due to interactions with neutrals
         if 'eirene_mc_eael_she_bal' in fhandle.variables.keys():
