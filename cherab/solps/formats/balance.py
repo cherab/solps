@@ -49,15 +49,12 @@ _popular_species = {
 
 
 # Code developed by J. Harrison 9/4/2019
-def load_solps_from_balance(balance_filename, debug=False):
+def load_solps_from_balance(balance_filename):
     """
     Load a SOLPS simulation from SOLPS balance.nc output files.
 
     """
 
-    if not os.path.isdir(balance_filename):
-        RuntimeError("file name must be valid")
-    
     # Open the file
     fhandle = netcdf.netcdf_file(balance_filename,'r')
 	
@@ -67,10 +64,8 @@ def load_solps_from_balance(balance_filename, debug=False):
     vol = copy.deepcopy(fhandle.variables['vol'].data)
 	
     # Re-arrange the array dimensions in the way CHERAB expects...
-    cr_x = np.swapaxes(cr_x,0,2)
-    cr_x = np.swapaxes(cr_x,0,1)
-    cr_z = np.swapaxes(cr_z,0,2)
-    cr_z = np.swapaxes(cr_z,0,1)
+    cr_x = np.moveaxis(cr_x, 0, -1)
+    cr_z = np.moveaxis(cr_z, 0, -1)
 	
     # Create the SOLPS mesh
     mesh = SOLPSMesh(cr_x,cr_z,vol)	
@@ -139,8 +134,7 @@ def load_solps_from_balance(balance_filename, debug=False):
     
     # Calculate the total radiated power
     
-    
-    if eirene_run is True:
+    if eirene_run:
         # Total radiated power from B2, not including neutrals
         b2_ploss = fhandle.variables['b2stel_she_bal'].data/vol
         
@@ -152,8 +146,8 @@ def load_solps_from_balance(balance_filename, debug=False):
         if 'eirene_mc_papl_sna_bal' in fhandle.variables.keys():
             eirene_potential_loss = 13.6*np.sum(fhandle.variables['eirene_mc_papl_sna_bal'].data,axis=(0))[1,:,:]*Q/vol
         
-        # This will be negative (energy sink); take absolute valu
-        sim._total_rad = np.abs(b2_ploss+(eirene_ecoolrate-eirene_potential_loss))
+        # This will be negative (energy sink); multiply by -1
+        sim._total_rad = -1.0*(b2_ploss+(eirene_ecoolrate-eirene_potential_loss))
         
     else:
  
@@ -162,29 +156,8 @@ def load_solps_from_balance(balance_filename, debug=False):
         
         potential_loss = np.sum(fhandle.variables['b2stel_sna_ion_bal'].data,axis=0)/vol
         
-        #rad_dens = (-np.sum(b2stel_she_bal,3)+13.6*Q*b2stel_sna_ion_bal[:,:,0])/vol
-        
         sim._total_rad = np.abs(13.6*Q*potential_loss-b2_ploss)
 	
     fhandle.close()	
 
     return sim
-
-
-def load_mesh_from_files(mesh_file_path, debug=False):
-    """
-    Load SOLPS grid description from B2 Eirene output file.
-
-    :param str filepath: full path for B2 eirene mesh description file
-    :param bool debug: flag for displaying textual debugging information.
-    :return: tuple of dictionaries. First is the header information such as the version, label, grid size, etc.
-      Second dictionary has a ndarray for each piece of data found in the file.
-    """
-    _, _, geom_data_dict = load_b2f_file(mesh_file_path, debug=debug)
-
-    cr_x = geom_data_dict['crx']
-    cr_z = geom_data_dict['cry']
-    vol = geom_data_dict['vol']
-
-    # build mesh object
-    return SOLPSMesh(cr_x, cr_z, vol)
