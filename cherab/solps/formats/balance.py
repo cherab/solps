@@ -113,13 +113,13 @@ def load_solps_from_balance(balance_filename):
     sim._species_density = tmp
 
     # Make Mesh Interpolator function for inside/outside mesh test.
-    inside_outside_data = ones(mesh.num_tris)
+    inside_outside_data = np.ones(mesh.num_tris)
     inside_outside = AxisymmetricMapper(Discrete2DMesh(mesh.vertex_coords, mesh.triangles, inside_outside_data, limit=False))
     sim._inside_mesh = inside_outside
 	
     # Load the neutrals data
     if 'D0' in sim.species_list:
-        for i in arange(len(sim.species_list)):
+        for i in np.arange(len(sim.species_list)):
             if sim.species_list[i] == 'D0':
                 D0_indx = i
 
