@@ -116,8 +116,11 @@ def load_solps_from_balance(balance_filename):
     inside_outside_data = np.ones(mesh.num_tris)
     inside_outside = AxisymmetricMapper(Discrete2DMesh(mesh.vertex_coords, mesh.triangles, inside_outside_data, limit=False))
     sim._inside_mesh = inside_outside
-	
+
+    
     # Load the neutrals data
+    D0_indx = None
+    
     if 'D0' in sim.species_list:
         for i in np.arange(len(sim.species_list)):
             if sim.species_list[i] == 'D0':
@@ -126,7 +129,8 @@ def load_solps_from_balance(balance_filename):
     # Replace the deuterium neutrals density (from the fluid neutrals model by default) with
     # the values calculated by EIRENE - do the same for other neutrals?
     if 'dab2' in fhandle.variables.keys():
-        sim.species_density[:,:,D0_indx] = fhandle.variables['dab2'].data[0,:,0:-2]
+        if D0_indx is not None:
+            sim.species_density[:,:,D0_indx] = fhandle.variables['dab2'].data[0,:,0:-2]
         eirene_run = True
     else:
         eirene_run = False
