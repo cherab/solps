@@ -16,4 +16,26 @@
 # See the Licence for the specific language governing permissions and limitations
 # under the Licence.
 
-from .eirene import Eirene
+import numpy as np
+
+
+def read_block44(file_handle, ns, nx, ny):
+    """ Read standard block in EIRENE code output file 'fort.44'
+
+    :param file_handle: A python core file handle object as a result of a
+      call to open('./fort.44').
+    :param int ns: total number of species
+    :param int nx: number of grid x cells
+    :param int ny: number of grid y cells
+    :return: ndarray of data with shape [nx, ny, ns]
+    """
+    data = []
+    npoints = ns * nx * ny
+    while len(data) < npoints:
+        line = file_handle.readline().split()
+        if line[0] == "*eirene":
+            # This is a comment line. Ignore
+            continue
+        data.extend(line)
+    data = np.asarray(data, dtype=float).reshape((nx, ny, ns), order='F')
+    return data
