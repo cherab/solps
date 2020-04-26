@@ -17,3 +17,4 @@
 # under the Licence.
 
 from .eirene import Eirene
+from .parser import load_fort44_file

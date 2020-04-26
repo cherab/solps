@@ -16,14 +16,8 @@
 # See the Licence for the specific language governing permissions and limitations
 # under the Licence.
 
-from cherab.solps.eirene.fort44.fort44_2017 import load_fort44_2017
-from cherab.solps.eirene.fort44.fort44_2013 import load_fort44_2013
-
-# library assigning file loaders to Eirene versions
-_fort44_parser_library = {
-    20170328: load_fort44_2017,
-    20130210: load_fort44_2013
-}
+from cherab.solps.eirene.parser.fort44_2017 import load_fort44_2017
+from cherab.solps.eirene.parser.fort44_2013 import load_fort44_2013
 
 
 def load_fort44_file(file_path, debug=False):
@@ -47,25 +41,29 @@ def load_fort44_file(file_path, debug=False):
         data["nx"] = int(line[0])
         data["ny"] = int(line[1])
         data["version"] = int(line[2])
-        if debug:
-            print('Geometry & Version : nx {}, ny {}, version {}'
-                  .format(data["nx"], data["ny"], data["version"]))
+
+    if debug:
+        print('Geometry & Version : nx {}, ny {}, version {}'
+              .format(data["nx"], data["ny"], data["version"]))
 
         # Look up file parsing function and call it to obtain for44 block and update data dictionary
-        parser = assign_fort44_parser(data["version"])
-        data.update(parser(file_handle, data["nx"], data["ny"], debug))
-
-    return data
+    parser = assign_fort44_parser(data["version"])
+    return parser(file_path)
 
 
 def assign_fort44_parser(file_version):
     """
-    Looks up file parsing function for the fort44 Eirene file.
+    Looks up file parsing function for the parser Eirene file.
     :param file_version: Fort44 file version from the file header.
     :return: Parsing function object
     """
 
-    if file_version in _fort44_parser_library.keys():
-        return _fort44_parser_library[file_version]
+    fort44_parser_library = {
+        20170328: load_fort44_2017,
+        20130210: load_fort44_2013
+    }
+
+    if file_version in fort44_parser_library.keys():
+        return fort44_parser_library[file_version]
     else:
         raise ValueError("Can't read version {} fort.44 file".format(file_version))

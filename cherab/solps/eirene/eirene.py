@@ -16,8 +16,6 @@
 # See the Licence for the specific language governing permissions and limitations
 # under the Licence.
 
-from cherab.solps.eirene.fort44 import load_fort44_file
-
 import numpy as np
 
 
@@ -89,11 +87,6 @@ class Eirene:
         self._elosm = elosm
         self._edism = edism
         self._eradt = eradt
-
-    @classmethod
-    def from_fort44(cls, file_path, debug=False):
-        data = load_fort44_file(file_path, debug)
-        return cls(**data)
 
     @property
     def nx(self):
@@ -332,7 +325,7 @@ class Eirene:
 
     @rem.setter
     def rem(self, value):
-        self._check_dimensions(value, self._rem)
+        self._check_dimensions(value, self._nm)
         self._rem = value
 
     @property

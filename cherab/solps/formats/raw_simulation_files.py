@@ -25,7 +25,7 @@ from cherab.core.math.mappers import AxisymmetricMapper
 from cherab.core.atomic.elements import hydrogen, deuterium, helium, beryllium, carbon, nitrogen, oxygen, neon, \
     argon, krypton, xenon
 
-from cherab.solps.eirene import Eirene
+from cherab.solps.eirene import load_fort44_file
 from cherab.solps.b2.parse_b2_block_file import load_b2f_file
 from cherab.solps.mesh_geometry import SOLPSMesh
 from cherab.solps.solps_plasma import SOLPSSimulation
@@ -114,7 +114,7 @@ def load_solps_from_raw_output(simulation_path, debug=False):
     sim._inside_mesh = inside_outside
 
     # Load total radiated power from EIRENE output file
-    eirene = Eirene.from_fort44(eirene_fort44_file, debug=debug)
+    eirene = load_fort44_file(eirene_fort44_file, debug=debug)
     sim._eirene = eirene
 
     # Note EIRENE data grid is slightly smaller than SOLPS grid, for example (98, 38) => (96, 36)
