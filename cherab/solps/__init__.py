@@ -20,4 +20,4 @@
 from .solps_3d_functions import SOLPSFunction3D, SOLPSVectorFunction3D
 from .mesh_geometry import SOLPSMesh
 from .solps_plasma import SOLPSSimulation
-from .formats import load_solps_from_raw_output, load_solps_from_mdsplus
+from .formats import load_solps_from_raw_output, load_solps_from_mdsplus, load_solps_from_balance
