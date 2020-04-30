@@ -130,7 +130,7 @@ def load_solps_from_balance(balance_filename):
     # Calculate the total radiated power
     if eirene_run:
         # Total radiated power from B2, not including neutrals
-        b2_ploss = fhandle.variables['b2stel_she_bal'].data.copy() / vol
+        b2_ploss = np.sum(fhandle.variables['b2stel_she_bal'].data, axis=0) / vol
 
         # Electron energy loss due to interactions with neutrals
         if 'eirene_mc_eael_she_bal' in fhandle.variables.keys():
