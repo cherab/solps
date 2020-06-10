@@ -32,8 +32,10 @@ from raysect.optical import Spectrum
 # CHERAB core imports
 from cherab.core import Plasma, Species, Maxwellian
 from cherab.core.math.mappers import AxisymmetricMapper
-from cherab.core.atomic.elements import hydrogen, deuterium, helium, beryllium, carbon, nitrogen, oxygen, neon, \
+from cherab.core.atomic.elements import (
+    hydrogen, deuterium, helium, beryllium, carbon, boron, nitrogen, oxygen, neon,
     argon, krypton, xenon
+)
 
 # This SOLPS package imports
 from .solps_3d_functions import SOLPSFunction3D, SOLPSVectorFunction3D
@@ -46,6 +48,7 @@ _species_symbol_map = {
     'D': deuterium,
     'C': carbon,
     'He': helium,
+    'B': boron,
     'N': nitrogen,
     'Ne': neon,
     'Ar': argon,
