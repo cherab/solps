@@ -168,7 +168,7 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     neurad = conn.get('\SOLPS::TOP.SNAPSHOT.ENEUTRAD').data()
     if neurad is not None:  # need to cope with fact that neurad may not be present!!!
         if len(neurad.shape) == 3:
-            neurad = np.swapaxes(np.abs(np.sum(neurad, axis=2)), 0, 1)
+            neurad = np.swapaxes(np.abs(np.sum(neurad, axis=0)), 0, 1)
         else:
             neurad = np.swapaxes(np.abs(neurad), 0, 1)
     else:
