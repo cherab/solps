@@ -24,7 +24,7 @@ import matplotlib.pyplot as plt
 from scipy.constants import atomic_mass, electron_mass
 
 # Raysect imports
-from raysect.core.math.function import Discrete2DMesh
+from raysect.core.math.function.float import Discrete2DMesh
 from raysect.core import translate, Point3D, Vector3D, Node, AffineMatrix3D
 from raysect.primitive import Cylinder
 from raysect.optical import Spectrum

@@ -20,7 +20,7 @@
 import numpy as np
 from scipy.io import netcdf
 from scipy.constants import elementary_charge
-from raysect.core.math import Discrete2DMesh
+from raysect.core.math.function.float import Discrete2DMesh
 
 from cherab.core.math.mappers import AxisymmetricMapper
 from cherab.core.atomic.elements import hydrogen, deuterium, helium, beryllium, carbon, nitrogen, oxygen, neon, \

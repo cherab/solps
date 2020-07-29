@@ -21,7 +21,7 @@ import re
 import numpy as np
 from math import sqrt
 from raysect.core import Point2D
-from raysect.core.math.function import Discrete2DMesh
+from raysect.core.math.function.float import Discrete2DMesh
 
 from cherab.core.math.mappers import AxisymmetricMapper
 from cherab.solps.mesh_geometry import SOLPSMesh
