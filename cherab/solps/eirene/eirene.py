@@ -22,14 +22,71 @@ import numpy as np
 # Code based on script by Felix Reimold (2016)
 class Eirene:
 
-    def __init__(self, file_path, debug=False):
+    def __init__(self, nx, ny, na, nm, ni, ns, species_labels, version=None,
+                 da=None, ta=None, dm=None, tm=None, di=None, ti=None, rpa=None, rpm=None, ppa=None, ppm=None, rea=None,
+                 rem=None, pea=None, pem=None, emist=None, emism=None, elosm=None, edism=None, eradt=None,
+                 *args, **kwargs):
         """ Class for holding EIRENE neutral simulation data
 
-        :param str file_path: path to EIRENE "fort.44" output file
-        :param bool debug: status flag for printing debugging output
+        :param file_path:
+        :param nx: Number of grid cells in the x direction
+        :param ny: Number of grid cells in the y direction
+        :param na: Number of atom species
+        :param nm: Number of molecule species
+        :param ni: Number of ion species
+        :param ns: Total number of species in simulation
+        :param species_labels: Text descriptions for each species in simulation.
+        :param version: Version of EIRENE
+        :param da: Atomic Neutral Density
+        :param ta: Atomic Neutral Temperature
+        :param dm: Molecular Neutral Density
+        :param tm: Molecular Neutral Temperature
+        :param di: Test Ion Density
+        :param ti: Test Ion Temperature
+        :param rpa: Atomic Radial Particle Flux
+        :param rpm: Molecular Radial Particle Flux
+        :param ppa: Atomic Poloidal Particle Flux
+        :param ppm: Molecular Poloidal Particle Flux
+        :param rea: Atomic Radial Energy Flux
+        :param rem: Molecular Radial Energy Flux
+        :param pea: Atomic Poloidal Energy Flux
+        :param pem: Molecular Poloidal Energy Flux
+        :param emist: Total Halpha Emission (including molecules)
+        :param emism: Molecular Halpha Emission
+        :param elosm: Power loss due to molecules (including dissociation)
+        :param edism: Power loss due to molecule dissociation
+        :param eradt: Neutral radiated power
+        :param debug: Print out debugging information.
         """
 
-        self._load_fort44_file(file_path, debug=debug)
+        self._nx = nx
+        self._ny = ny
+        self._na = na
+        self._nm = nm
+        self._ni = ni
+        self._ns = ns
+
+        self._species_labels = species_labels
+        self._version = version
+        self._da = da
+        self._ta = ta
+        self._dm = dm
+        self._tm = tm
+        self._di = di
+        self._ti = ti
+        self._rpa = rpa
+        self._rpm = rpm
+        self._ppa = ppa
+        self._ppm = ppm
+        self._rea = rea
+        self._rem = rem
+        self._pea = pea
+        self._pem = pem
+        self._emist = emist
+        self._emism = emism
+        self._elosm = elosm
+        self._edism = edism
+        self._eradt = eradt
 
     @property
     def nx(self):
@@ -112,6 +169,11 @@ class Eirene:
         """
         return self._da
 
+    @da.setter
+    def da(self, value):
+        self._check_dimensions(value, self._na)
+        self._da = value
+
     @property
     def ta(self):
         """
@@ -120,6 +182,11 @@ class Eirene:
         :rtype: np.ndarray
         """
         return self._ta
+
+    @ta.setter
+    def ta(self, value):
+        self._check_dimensions(value, self._na)
+        self._ta = value
 
     @property
     def dm(self):
@@ -130,6 +197,11 @@ class Eirene:
         """
         return self._dm
 
+    @dm.setter
+    def dm(self, value):
+        self._check_dimensions(value, self._nm)
+        self._dm = value
+
     @property
     def tm(self):
         """
@@ -138,6 +210,11 @@ class Eirene:
         :rtype: np.ndarray
         """
         return self._tm
+
+    @tm.setter
+    def tm(self, value):
+        self._check_dimensions(value, self._nm)
+        self._tm = value
 
     @property
     def di(self):
@@ -148,6 +225,11 @@ class Eirene:
         """
         return self._di
 
+    @di.setter
+    def di(self, value):
+        self._check_dimensions(value, self._ni)
+        self._di = value
+
     @property
     def ti(self):
         """
@@ -156,6 +238,11 @@ class Eirene:
         :rtype: np.ndarray
         """
         return self._ti
+
+    @ti.setter
+    def ti(self, value):
+        self._check_dimensions(value, self._ni)
+        self._ti = value
 
     @property
     def rpa(self):
@@ -166,6 +253,11 @@ class Eirene:
         """
         return self._rpa
 
+    @rpa.setter
+    def rpa(self, value):
+        self._check_dimensions(value, self._na)
+        self._rpa = value
+
     @property
     def rpm(self):
         """
@@ -174,6 +266,11 @@ class Eirene:
         :rtype: np.ndarray
         """
         return self._rpm
+
+    @rpm.setter
+    def rpm(self, value):
+        self._check_dimensions(value, self._nm)
+        self._rpm = value
 
     @property
     def ppa(self):
@@ -184,6 +281,11 @@ class Eirene:
         """
         return self._ppa
 
+    @ppa.setter
+    def ppa(self, value):
+        self._check_dimensions(value, self._na)
+        self._ppa = value
+
     @property
     def ppm(self):
         """
@@ -192,6 +294,11 @@ class Eirene:
         :rtype: np.ndarray
         """
         return self._ppm
+
+    @ppm.setter
+    def ppm(self, value):
+        self._check_dimensions(value, self._nm)
+        self._ppm = value
 
     @property
     def rea(self):
@@ -202,6 +309,11 @@ class Eirene:
         """
         return self._rea
 
+    @rea.setter
+    def rea(self, value):
+        self._check_dimensions(value, self._na)
+        self._rea = value
+
     @property
     def rem(self):
         """
@@ -210,6 +322,11 @@ class Eirene:
         :rtype: np.ndarray
         """
         return self._rem
+
+    @rem.setter
+    def rem(self, value):
+        self._check_dimensions(value, self._nm)
+        self._rem = value
 
     @property
     def pea(self):
@@ -220,6 +337,11 @@ class Eirene:
         """
         return self._pea
 
+    @pea.setter
+    def pea(self, value):
+        self._check_dimensions(value, self._na)
+        self._pea = value
+
     @property
     def pem(self):
         """
@@ -228,6 +350,11 @@ class Eirene:
         :rtype: np.ndarray
         """
         return self._pem
+
+    @pem.setter
+    def pem(self, value):
+        self._check_dimensions(value, self._nm)
+        self._pem = value
 
     @property
     def emist(self):
@@ -238,6 +365,11 @@ class Eirene:
         """
         return self._emist
 
+    @emist.setter
+    def emist(self, value):
+        self._check_dimensions(value, 1)
+        self._emist = value
+
     @property
     def emism(self):
         """
@@ -246,6 +378,11 @@ class Eirene:
         :rtype: np.ndarray
         """
         return self._emism
+
+    @emism.setter
+    def emism(self, value):
+        self._check_dimensions(value, 1)
+        self._emism = value
 
     @property
     def elosm(self):
@@ -256,6 +393,11 @@ class Eirene:
         """
         return self._elosm
 
+    @elosm.setter
+    def elosm(self, value):
+        self._check_dimensions(value, 1)
+        self._elosm = value
+
     @property
     def edism(self):
         """
@@ -264,6 +406,11 @@ class Eirene:
         :rtype: np.ndarray
         """
         return self._edism
+
+    @edism.setter
+    def edism(self, value):
+        self._check_dimensions(value, 1)
+        self._edism = value
 
     @property
     def eradt(self):
@@ -274,200 +421,18 @@ class Eirene:
         """
         return self._eradt
 
-    @staticmethod
-    def _read_block44(file_handle, ns, nx, ny):
-        """ Read standard block in EIRENE code output file 'fort.44'
+    @eradt.setter
+    def eradt(self, value):
+        self._check_dimensions(value, 1)
+        self._eradt = value
 
-        :param file_handle: A python core file handle object as a result of a
-          call to open('./fort.44').
-        :param int ns: total number of species
-        :param int nx: number of grid x cells
-        :param int ny: number of grid y cells
-        :return: ndarray of data with shape [nx, ny, ns]
+    def _check_dimensions(self, data, dim2):
         """
-        data = []
-        npoints = ns * nx * ny
-        while len(data) < npoints:
-            line = file_handle.readline().split()
-            if line[0] == "*eirene":
-                # This is a comment line. Ignore
-                continue
-            data.extend(line)
-        data = np.asarray(data, dtype=float).reshape((nx, ny, ns), order='F')
-        return data
-
-    def _load_fort44_file(self, file_path, debug=False):
-        """ Read neutral species and wall flux information from fort.44
-
-        Template for reading is ngread.F in b2plot of B2.5 source.
-
-        Specifications of data format are in Section 5.2 of the SOLPS
-        manual (Running the coupled version -> Output Files).
-
-        :param str file_path: path to EIRENE "fort.44" output file
-        :param bool debug: status flag for printing debugging output
-        :rtype:
+        Checks compatibility of the data array dimension with the species number and grid size.
+        :param dim2: size of the 2nd dimenion
+        :return:
         """
-        with open(file_path, 'r') as file_handle:
-            # Read sizes
-            line = file_handle.readline().split()
-            self._nx = int(line[0])
-            self._ny = int(line[1])
-            self._version = int(line[2])
-            if debug:
-                print('Geometry & Version : nx {}, ny {}, version {}'
-                      .format(self._nx, self._ny, self._version))
-            # Dispatch to the appropriate routine for reading the fort44 file.
-            if self._version == 20130210:
-                self._load_fort44_2013(file_handle, debug)
-            elif self._version == 20170328:
-                self._load_fort44_2017(file_handle, debug)
-            else:
-                raise ValueError("Can't read version {} fort.44 file".format(self._version))
 
-    def _load_fort44_2013(self, file_handle, debug=False):
-        """ Read neutral species and wall flux information from fort.44
-
-        Template for reading is ngread.F in b2plot of B2.5 source.
-        This is for fort.44 files with format ID 20130210.
-
-        :param str file_handle: an open "fort.44" output file
-        :param bool debug: status flag for printing debugging output
-        :rtype:
-        """
-        # Read Species numbers
-        line = file_handle.readline().split()
-        self._na = int(line[0])  # number of atoms
-        self._nm = int(line[1])  # number of molecules
-        self._ni = int(line[2])  # number of ions
-        self._ns = self._na + self._nm + self._ni  # total number of species
-        if debug:
-            print('Species # : {} atoms, {} molecules, {} ions, {} total species'
-                  .format(self._na, self._nm, self._ni, self._ns))
-
-        # Read Species labels
-        self._species_labels = []
-        for _ in range(self._ns):
-            line = file_handle.readline()
-            self._species_labels.append(line.strip())
-        if debug:
-            print("Species labels => {}".format(self._species_labels))
-
-        # Read atomic species (da, ta)
-        self._da = self._read_block44(file_handle, self._na, self._nx, self._ny)  # Atomic Neutral Density
-        self._ta = self._read_block44(file_handle, self._na, self._nx, self._ny)  # Atomic Neutral Temperature
-        if debug:
-            print('Atomic Neutral Density nD0: ', self._da[0, :, 0])
-            print('Atomic Neutral Temperature TD0: ', self._ta[0, :, 0])
-
-        # Read molecular species (dm, tm)
-        self._dm = self._read_block44(file_handle, self._nm, self._nx, self._ny)  # Molecular Neutral Density
-        self._tm = self._read_block44(file_handle, self._nm, self._nx, self._ny)  # Molecular Neutral Temperature
-
-        # Read ion species (di, ti)
-        self._di = self._read_block44(file_handle, self._ni, self._nx, self._ny)  # Test Ion Density
-        self._ti = self._read_block44(file_handle, self._ni, self._nx, self._ny)  # Test Ion Temperature
-
-        # Read radial particle flux (rpa, rpm)
-        self._rpa = self._read_block44(file_handle, self._na, self._nx, self._ny)  # Atomic Radial Particle Flux
-        self._rpm = self._read_block44(file_handle, self._nm, self._nx, self._ny)  # Molecular Radial Particle Flux
-
-        # Read poloidal particle flux (ppa, ppm)
-        self._ppa = self._read_block44(file_handle, self._na, self._nx, self._ny)  # Atomic Poloidal Particle Flux
-        self._ppm = self._read_block44(file_handle, self._nm, self._nx, self._ny)  # Molecular Poloidal Particle Flux
-
-        # Read radial energy flux (rea, rem)
-        self._rea = self._read_block44(file_handle, self._na, self._nx, self._ny)  # Atomic Radial Energy Flux
-        self._rem = self._read_block44(file_handle, self._nm, self._nx, self._ny)  # Molecular Radial Energy Flux
-
-        # Read poloidal energy flux (pea, pem)
-        self._pea = self._read_block44(file_handle, self._na, self._nx, self._ny)  # Atomic Poloidal Energy Flux
-        self._pem = self._read_block44(file_handle, self._nm, self._nx, self._ny)  # Molecular Poloidal Energy Flux
-
-        # Halpha total & molecules (emist, emism)
-        self._emist = self._read_block44(file_handle, 1, self._nx, self._ny)  # Total Halpha Emission (including molecules)
-        self._emism = self._read_block44(file_handle, 1, self._nx, self._ny)  # Molecular Halpha Emission
-
-        # Radiated power (elosm, edism, eradt)
-        self._elosm = self._read_block44(file_handle, 1, self._nx, self._ny)  # Power loss due to molecules (including dissociation)
-        self._edism = self._read_block44(file_handle, 1, self._nx, self._ny)  # Power loss due to molecule dissociation
-        self._eradt = self._read_block44(file_handle, 1, self._nx, self._ny)  # Neutral radiated power
-
-    def _load_fort44_2017(self, file_handle, debug=False):
-        """
-        Read neutral species and wall flux information from fort.44.
-
-        This is for fort.44 files with format ID 20170328.
-        Specification of the data format is in Section 5.2 of the SOLPS
-        manual (Running the coupled version -> Output Files).
-
-        :param str file_handle: an open "fort.44" output file
-        :param bool debug: status flag for printing debugging output
-        :rtype:
-        """
-        # Read Species numbers
-        line = file_handle.readline().split()
-        self._na = int(line[0])  # number of atoms
-        self._nm = int(line[1])  # number of molecules
-        self._ni = int(line[2])  # number of ions
-        self._ns = self._na + self._nm + self._ni  # total number of species
-        if debug:
-            print('Species # : {} atoms, {} molecules, {} ions, {} total species'
-                  .format(self._na, self._nm, self._ni, self._ns))
-
-        # Read Species labels
-        self._species_labels = []
-        for _ in range(self._ns):
-            line = file_handle.readline()
-            self._species_labels.append(line.strip())
-        if debug:
-            print("Species labels => {}".format(self._species_labels))
-
-        # Read atomic species (da, ta)
-        self._da = self._read_block44(file_handle, self._na, self._nx, self._ny)  # Atomic Neutral Density
-        self._ta = self._read_block44(file_handle, self._na, self._nx, self._ny)  # Atomic Neutral Temperature
-        if debug:
-            print('Atomic Neutral Density nD0: ', self._da[0, :, 0])
-            print('Atomic Neutral Temperature TD0: ', self._ta[0, :, 0])
-
-        # Read molecular species (dm, tm)
-        self._dm = self._read_block44(file_handle, self._nm, self._nx, self._ny)  # Molecular Neutral Density
-        self._tm = self._read_block44(file_handle, self._nm, self._nx, self._ny)  # Molecular Neutral Temperature
-
-        # Read ion species (di, ti)
-        self._di = self._read_block44(file_handle, self._ni, self._nx, self._ny)  # Test Ion Density
-        self._ti = self._read_block44(file_handle, self._ni, self._nx, self._ny)  # Test Ion Temperature
-
-        # Read radial particle flux (rpa, rpm)
-        self._rpa = self._read_block44(file_handle, self._na, self._nx, self._ny)  # Atomic Radial Particle Flux
-        self._rpm = self._read_block44(file_handle, self._nm, self._nx, self._ny)  # Molecular Radial Particle Flux
-
-        # Read poloidal particle flux (ppa, ppm)
-        self._ppa = self._read_block44(file_handle, self._na, self._nx, self._ny)  # Atomic Poloidal Particle Flux
-        self._ppm = self._read_block44(file_handle, self._nm, self._nx, self._ny)  # Molecular Poloidal Particle Flux
-
-        # Read radial energy flux (rea, rem)
-        self._rea = self._read_block44(file_handle, self._na, self._nx, self._ny)  # Atomic Radial Energy Flux
-        self._rem = self._read_block44(file_handle, self._nm, self._nx, self._ny)  # Molecular Radial Energy Flux
-
-        # Read poloidal energy flux (pea, pem)
-        self._pea = self._read_block44(file_handle, self._na, self._nx, self._ny)  # Atomic Poloidal Energy Flux
-        self._pem = self._read_block44(file_handle, self._nm, self._nx, self._ny)  # Molecular Poloidal Energy Flux
-
-        # Halpha total & molecules (emist, emism)
-        self._emist = self._read_block44(file_handle, 1, self._nx, self._ny)  # Total Halpha Emission (including molecules)
-        self._emism = self._read_block44(file_handle, 1, self._nx, self._ny)  # Molecular Halpha Emission
-
-        # Molecular source term, unused
-        _ = self._read_block44(file_handle, self._nm, self._nx, self._ny)  # Molecule particle source
-
-        # Radiated power (elosm, edism, eradt)
-        self._edism = self._read_block44(file_handle, 1, self._nx, self._ny)  # Power loss due to molecule dissociation
-
-        # Consume lines until eradt is reached
-        while True:
-            line = file_handle.readline().split()
-            if line[0] == "*eirene" and line[3] == "eneutrad":
-                break
-
-        self._eradt = self._read_block44(file_handle, 1, self._nx, self._ny)  # Neutral radiated power
+        if not data.shape == (self._nx, self._ny, dim2):
+            raise ValueError("Array with shape {0} obtained, but {1} expected".format(data.shape,
+                                                                                      (self._nx, self._ny, dim2)))
