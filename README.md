@@ -29,13 +29,13 @@ Cherab core, and all of its dependencies, are available on PyPI and can be insta
 However, the SOLPS module will need to be installed from this repository.
 
 Note also that a [bug](https://github.com/cython/cython/issues/2918) in Cython prevents Cherab submodules from installing correctly.
-This bug is fixed, but not yet released.
-As a result, you will need to install the latest master version of Cython before installing this package.
+This bug is fixed, but not yet released in the stable version of Cython.
+As a result, you will need to install the latest alpha version of Cython before installing this package.
 
 First, clone this repository, then do:
 
 ```bash
-pip install -U git+https://github.com/cython/cython
+pip install -U cython==3.0a5
 pip install cherab
 pip install <path-to-cherab-solps>
 ```
