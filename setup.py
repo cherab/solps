@@ -39,11 +39,10 @@ else:
 
 setup(
     name="cherab-solps",
-    version="1.0.0",
+    version="1.1.0",
     license="EUPL 1.1",
     namespace_packages=['cherab'],
     packages=find_packages(),
     include_package_data=True,
     ext_modules=cythonize(extensions, nthreads=threads, force=force, compiler_directives=directives)
 )
-

@@ -1,4 +1,3 @@
-
 # Copyright 2016-2018 Euratom
 # Copyright 2016-2018 United Kingdom Atomic Energy Authority
 # Copyright 2016-2018 Centro de Investigaciones Energéticas, Medioambientales y Tecnológicas
@@ -17,7 +16,26 @@
 # See the Licence for the specific language governing permissions and limitations
 # under the Licence.
 
-from .solps_3d_functions import SOLPSFunction3D, SOLPSVectorFunction3D
-from .mesh_geometry import SOLPSMesh
-from .solps_plasma import SOLPSSimulation
-from .formats import load_solps_from_raw_output, load_solps_from_mdsplus, load_solps_from_balance
+import numpy as np
+
+
+def read_block44(file_handle, ns, nx, ny):
+    """ Read standard block in EIRENE code output file 'fort.44'
+
+    :param file_handle: A python core file handle object as a result of a
+      call to open('./fort.44').
+    :param int ns: total number of species
+    :param int nx: number of grid x cells
+    :param int ny: number of grid y cells
+    :return: ndarray of data with shape [nx, ny, ns]
+    """
+    data = []
+    npoints = ns * nx * ny
+    while len(data) < npoints:
+        line = file_handle.readline().split()
+        if line[0] == "*eirene":
+            # This is a comment line. Ignore
+            continue
+        data.extend(line)
+    data = np.asarray(data, dtype=float).reshape((nx, ny, ns), order='F')
+    return data

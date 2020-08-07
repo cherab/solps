@@ -23,11 +23,10 @@ import numpy as np
 from numpy cimport ndarray
 
 from raysect.core.math.vector cimport Vector3D, new_vector3d
-from raysect.core.math.interpolators cimport Discrete2DMesh
-from raysect.core.math.transform import rotate_z
+from raysect.core.math.function cimport Discrete2DMesh, Function3D
+from raysect.core.math.transform cimport rotate_z
 
 from cherab.core.math.mappers cimport AxisymmetricMapper
-from cherab.core.math.function cimport Function3D
 from cherab.core.math.function.vectorfunction3d cimport VectorFunction3D
 cimport cython
 

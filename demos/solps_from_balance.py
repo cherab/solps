@@ -19,22 +19,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from cherab.core.atomic.elements import carbon, deuterium
-from cherab.solps import load_solps_from_mdsplus
+from cherab.solps import load_solps_from_balance
 
 plt.ion()
-
-mds_server = 'solps-mdsplus.aug.ipp.mpg.de:8001'
-ref_number = 69636
-
 
 xl, xu = (0.0, 2.0)
 yl, yu = (-2.0, 2.0)
 
+print('CHERAB solps_from_balance demo')
+print('Note: code assumes presence of deuterium and carbon species in SOLPS run')
+print('Enter name of balance.nc file:')
+filename = input()
 
-sim = load_solps_from_mdsplus(mds_server, ref_number)
+sim = load_solps_from_balance(filename)
 plasma = sim.create_plasma()
 mesh = sim.mesh
-vessel = mesh.vessel
 
 d0 = plasma.composition.get(deuterium, 0)
 d1 = plasma.composition.get(deuterium, 1)
@@ -57,8 +56,6 @@ c3_samples = np.zeros((500, 500))
 c4_samples = np.zeros((500, 500))
 c5_samples = np.zeros((500, 500))
 c6_samples = np.zeros((500, 500))
-d0_velocity = np.zeros((500, 500))
-d1_velocity = np.zeros((500, 500))
 xrange = np.linspace(xl, xu, 500)
 yrange = np.linspace(yl, yu, 500)
 
@@ -76,9 +73,6 @@ for i, x in enumerate(xrange):
         c4_samples[j, i] = c4.distribution.density(x, 0.0, y)
         c5_samples[j, i] = c5.distribution.density(x, 0.0, y)
         c6_samples[j, i] = c6.distribution.density(x, 0.0, y)
-        # magnitude of velocity vector
-        d0_velocity[j, i] = d0.distribution.bulk_velocity(x, 0.0, y).length
-        d1_velocity[j, i] = d1.distribution.bulk_velocity(x, 0.0, y).length
 
 mesh.plot_mesh()
 plt.title('mesh geometry')
@@ -152,20 +146,6 @@ plt.colorbar()
 plt.xlim(xl, xu)
 plt.ylim(yl, yu)
 plt.title("CVII density")
-
-plt.figure()
-plt.imshow(d0_velocity, extent=[xl, xu, yl, yu], origin='lower')
-plt.colorbar()
-plt.xlim(xl, xu)
-plt.ylim(yl, yu)
-plt.title("D0 velocity")
-
-plt.figure()
-plt.imshow(d1_velocity, extent=[xl, xu, yl, yu], origin='lower')
-plt.colorbar()
-plt.xlim(xl, xu)
-plt.ylim(yl, yu)
-plt.title("D1 velocity")
 
 plt.ioff()
 plt.show()

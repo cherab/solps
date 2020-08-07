@@ -21,7 +21,7 @@ import re
 import numpy as np
 from math import sqrt
 from raysect.core import Point2D
-from raysect.core.math.interpolators import Discrete2DMesh
+from raysect.core.math.function import Discrete2DMesh
 
 from cherab.core.math.mappers import AxisymmetricMapper
 from cherab.solps.mesh_geometry import SOLPSMesh
@@ -93,9 +93,9 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     sim._radial_area = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.SY').data(), 0, 1)  # radial contact area
 
     # Load the neutral atom density from B2
-    dab2 = conn.get('\SOLPS::TOP.SNAPSHOT.DAB2')
+    dab2 = conn.get('\SOLPS::TOP.SNAPSHOT.DAB2').data()
     if isinstance(dab2, np.ndarray):
-        sim._b2_neutral_densities = np.swapaxes(dab2.data(), 0, 2)
+        sim._b2_neutral_densities = np.swapaxes(dab2, 0, 2)
 
     sim._velocities_parallel = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.UA').data(), 0, 2)
     sim._velocities_radial = np.zeros((ni, nj, len(sim.species_list)))
@@ -112,7 +112,7 @@ def load_solps_from_mdsplus(mds_server, ref_number):
         charge = int(charge)
 
         # If neutral and B" atomic density available,  use B2 density, otherwise use fluid species density.
-        if charge == 0 and (sim._b2_neutral_densities != None):
+        if charge == 0 and (sim._b2_neutral_densities is not None):
             species_dens_data = sim.b2_neutral_densities[:, :, b2_neutral_i]
             b2_neutral_i += 1
         else:
@@ -168,7 +168,7 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     neurad = conn.get('\SOLPS::TOP.SNAPSHOT.ENEUTRAD').data()
     if neurad is not None:  # need to cope with fact that neurad may not be present!!!
         if len(neurad.shape) == 3:
-            neurad = np.swapaxes(np.abs(np.sum(neurad, axis=2)), 0, 1)
+            neurad = np.swapaxes(np.abs(np.sum(neurad, axis=0)), 0, 1)
         else:
             neurad = np.swapaxes(np.abs(neurad), 0, 1)
     else:

@@ -1,4 +1,3 @@
-
 # Copyright 2016-2018 Euratom
 # Copyright 2016-2018 United Kingdom Atomic Energy Authority
 # Copyright 2016-2018 Centro de Investigaciones Energéticas, Medioambientales y Tecnológicas
@@ -18,3 +17,4 @@
 # under the Licence.
 
 from .eirene import Eirene
+from .parser import load_fort44_file

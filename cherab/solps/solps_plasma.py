@@ -24,7 +24,7 @@ import matplotlib.pyplot as plt
 from scipy.constants import atomic_mass, electron_mass
 
 # Raysect imports
-from raysect.core.math.interpolators import Discrete2DMesh
+from raysect.core.math.function import Discrete2DMesh
 from raysect.core import translate, Point3D, Vector3D, Node, AffineMatrix3D
 from raysect.primitive import Cylinder
 from raysect.optical import Spectrum
@@ -32,8 +32,10 @@ from raysect.optical import Spectrum
 # CHERAB core imports
 from cherab.core import Plasma, Species, Maxwellian
 from cherab.core.math.mappers import AxisymmetricMapper
-from cherab.core.atomic.elements import hydrogen, deuterium, helium, beryllium, carbon, nitrogen, oxygen, neon, \
+from cherab.core.atomic.elements import (
+    hydrogen, deuterium, helium, beryllium, carbon, boron, nitrogen, oxygen, neon,
     argon, krypton, xenon
+)
 
 # This SOLPS package imports
 from .solps_3d_functions import SOLPSFunction3D, SOLPSVectorFunction3D
@@ -46,6 +48,7 @@ _species_symbol_map = {
     'D': deuterium,
     'C': carbon,
     'He': helium,
+    'B': boron,
     'N': nitrogen,
     'Ne': neon,
     'Ar': argon,
@@ -276,6 +279,7 @@ class SOLPSSimulation:
         return state
 
     def __setstate__(self, state):
+        self.mesh = SOLPSMesh(**state['mesh'])
         self._electron_temperature = state['electron_temperature']
         self._electron_density = state['electron_density']
         self._species_list = state['species_list']
