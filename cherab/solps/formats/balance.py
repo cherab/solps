@@ -19,35 +19,23 @@
 
 import numpy as np
 from scipy.io import netcdf
-from scipy.constants import elementary_charge
+from scipy import constants
 from raysect.core.math.function.float import Discrete2DMesh
 
 from cherab.core.math.mappers import AxisymmetricMapper
-from cherab.core.atomic.elements import hydrogen, deuterium, helium, beryllium, carbon, nitrogen, oxygen, neon, \
-    argon, krypton, xenon
+from cherab.core.atomic.elements import lookup_isotope, deuterium
 
 from cherab.solps.mesh_geometry import SOLPSMesh
-from cherab.solps.solps_plasma import SOLPSSimulation
+from cherab.solps.solps_plasma import SOLPSSimulation, prefer_element
 
-Q = elementary_charge
-
-# key is nuclear charge Z and atomic mass AMU
-_popular_species = {
-    (1, 2): deuterium,
-    (6, 12.0): carbon,
-    (2, 4.003): helium,
-    (7, 14.0): nitrogen,
-    (10, 20.180): neon,
-    (18, 39.948): argon,
-    (18, 40.0): argon,
-    (36, 83.798): krypton,
-    (54, 131.293): xenon
-}
 
 def load_solps_from_balance(balance_filename):
     """
     Load a SOLPS simulation from SOLPS balance.nc output files.
     """
+
+    el_charge = constants.elementary_charge
+    rydberg_energy = constants.value('Rydberg constant times hc in eV')
 
     # Open the file
     fhandle = netcdf.netcdf_file(balance_filename, 'r')
@@ -62,26 +50,15 @@ def load_solps_from_balance(balance_filename):
     cr_z = np.moveaxis(cr_z, 0, -1)
 
     # Create the SOLPS mesh
-    mesh = SOLPSMesh(cr_x, cr_z, vol)	
+    mesh = SOLPSMesh(cr_x, cr_z, vol)
 
-    sim = SOLPSSimulation(mesh)
+    # Load each plasma species in simulation
 
-    # TODO: add code to load SOLPS velocities and magnetic field from files
-
-    # Load electron species
-    sim._electron_temperature = fhandle.variables['te'].data.copy() / Q
-    sim._electron_density = fhandle.variables['ne'].data.copy()
-
-    ##########################################
-    # Load each plasma species in simulation #
-    ##########################################
-
-    sim._species_list = []
+    species_list = []
     n_species = len(fhandle.variables['am'].data)
-
     for i in range(n_species):
 
-        # Extract the nuclear charge	
+        # Extract the nuclear charge    
         if fhandle.variables['species'].data[i, 1] == b'D':
             zn = 1
         if fhandle.variables['species'].data[i, 1] == b'C':
@@ -93,25 +70,29 @@ def load_solps_from_balance(balance_filename):
         if fhandle.variables['species'].data[i, 1] == b'A' and fhandle.variables['species'].data[i, 2] == b'r':
             zn = 18
 
-        am = float(fhandle.variables['am'].data[i])  # Atomic mass
+        am = int(round(float(fhandle.variables['am'].data[i])))  # Atomic mass
         charge = int(fhandle.variables['za'].data[i])  # Ionisation/charge
-        species = _popular_species[(zn, am)]
+        isotope = lookup_isotope(zn, number=am)
+        species = prefer_element(isotope)  # Prefer Element over Isotope if the mass number is the same
 
-        # If we only need to populate species_list, there is probably a faster way to do this...		
-        sim.species_list.append(species.symbol + str(charge))
+        # If we only need to populate species_list, there is probably a faster way to do this...        
+        species_list.append((species, charge))
+
+    sim = SOLPSSimulation(mesh, species_list)
+
+    # TODO: add code to load SOLPS velocities and magnetic field from files
+
+    # Load electron species
+    sim.electron_temperature = fhandle.variables['te'].data.copy() / el_charge
+    sim.electron_density = fhandle.variables['ne'].data.copy()
 
     tmp = fhandle.variables['na'].data.copy()
     tmp = np.moveaxis(tmp, 0, -1)
-    sim._species_density = tmp
-
-    # Make Mesh Interpolator function for inside/outside mesh test.
-    inside_outside_data = np.ones(mesh.num_tris)
-    inside_outside = AxisymmetricMapper(Discrete2DMesh(mesh.vertex_coords, mesh.triangles, inside_outside_data, limit=False))
-    sim._inside_mesh = inside_outside
+    sim.species_density = tmp
 
     # Load the neutrals data
     try:
-        D0_indx = sim.species_list.index('D0')
+        D0_indx = sim.species_list.index((deuterium, 0))
     except ValueError:
         D0_indx = None
 
@@ -121,7 +102,7 @@ def load_solps_from_balance(balance_filename):
         if D0_indx is not None:
             b2_len = np.shape(sim.species_density[:, :, D0_indx])[-1]
             eirene_len = np.shape(fhandle.variables['dab2'].data)[-1]
-            sim.species_density[:, :, D0_indx] = fhandle.variables['dab2'].data[0, :, 0:b2_len-eirene_len]
+            sim.species_density[:, :, D0_indx] = fhandle.variables['dab2'].data[0, :, 0:b2_len - eirene_len]
 
         eirene_run = True
     else:
@@ -138,20 +119,20 @@ def load_solps_from_balance(balance_filename):
 
         # Ionisation rate from EIRENE, needed to calculate the energy loss to overcome the ionisation potential of atoms
         if 'eirene_mc_papl_sna_bal' in fhandle.variables.keys():
-            eirene_potential_loss = 13.6 * np.sum(fhandle.variables['eirene_mc_papl_sna_bal'].data, axis=(0))[1, :, :] * Q / vol
+            eirene_potential_loss = rydberg_energy * np.sum(fhandle.variables['eirene_mc_papl_sna_bal'].data, axis=(0))[1, :, :] * el_charge / vol
 
         # This will be negative (energy sink); multiply by -1
-        sim._total_rad = -1.0 * (b2_ploss + (eirene_ecoolrate-eirene_potential_loss))
+        sim.total_radiation = -1.0 * (b2_ploss + (eirene_ecoolrate - eirene_potential_loss))
 
     else:
-         # Total radiated power from B2, not including neutrals
-        b2_ploss = np.sum(fhandle.variables['b2stel_she_bal'].data, axis=0)/vol
+        # Total radiated power from B2, not including neutrals
+        b2_ploss = np.sum(fhandle.variables['b2stel_she_bal'].data, axis=0) / vol
 
-        potential_loss = np.sum(fhandle.variables['b2stel_sna_ion_bal'].data, axis=0)/vol
+        potential_loss = np.sum(fhandle.variables['b2stel_sna_ion_bal'].data, axis=0) / vol
 
         # Save total radiated power to the simulation object
-        sim._total_rad = 13.6 * Q * potential_loss - b2_ploss
+        sim.total_radiation = rydberg_energy * el_charge * potential_loss - b2_ploss
 
-    fhandle.close()	
+    fhandle.close()
 
     return sim

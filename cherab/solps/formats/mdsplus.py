@@ -19,16 +19,15 @@
 
 import re
 import numpy as np
-from math import sqrt
 from raysect.core import Point2D
-from raysect.core.math.function.float import Discrete2DMesh
 
-from cherab.core.math.mappers import AxisymmetricMapper
+from cherab.core.atomic.elements import lookup_element, lookup_isotope
 from cherab.solps.mesh_geometry import SOLPSMesh
 from cherab.solps.solps_plasma import SOLPSSimulation
 
 
 _SPECIES_REGEX = '([a-zA-z]+)\+?([0-9]+)'
+
 
 # TODO: violates interface of SOLPSSimulation.... puts numpy arrays in the object where they should be function2D
 def load_solps_from_mdsplus(mds_server, ref_number):
@@ -48,111 +47,99 @@ def load_solps_from_mdsplus(mds_server, ref_number):
 
     # Load SOLPS mesh geometry and lookup arrays
     mesh = load_mesh_from_mdsplus(conn)
-    sim = SOLPSSimulation(mesh)
+
+    # Load each plasma species
+    # Master list of species, e.g. ['D0', 'D+1', 'C0', 'C+1', ...
+    master_list = conn.get('\SOLPS::TOP.IDENT.SPECIES').data()
+    try:
+        master_list = master_list.decode('UTF-8').split()
+    except AttributeError:  # Already a string
+        master_list = master_list.split()
+
+    species_list = []
+    for sp in master_list:
+        # Only hydrogen isotopes (D, T) are supported in TOP.IDENT.SPECIES for now (no He3, C13, etc.),
+        # so re.match should be safe.
+        symbol, charge = re.match(_SPECIES_REGEX, sp).groups()
+        try:
+            species = lookup_element(symbol)
+        except ValueError:
+            species = lookup_isotope(symbol)
+        species_list.append((species, int(charge)))
+
+    sim = SOLPSSimulation(mesh, species_list)
     ni = mesh.nx
     nj = mesh.ny
 
     ##########################
     # Magnetic field vectors #
-    raw_b_field = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.B').data(), 0, 2)
+    b_field_vectors = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.B').data(), 0, 2)[:, :, :3]
     b_field_vectors_cartesian = np.zeros((ni, nj, 3))
-    b_field_vectors = np.zeros((ni, nj, 3))
-    for i in range(ni):
-        for j in range(nj):
-            bparallel = raw_b_field[i, j, 0]
-            bradial = raw_b_field[i, j, 1]
-            btoroidal = raw_b_field[i, j, 2]
-            b_field_vectors[i, j] = (bparallel, bradial, btoroidal)
 
-            pv = mesh.poloidal_grid_basis[i, j, 0]  # parallel basis vector
-            rv = mesh.poloidal_grid_basis[i, j, 1]  # radial basis vector
+    bparallel = b_field_vectors[:, :, 0]
+    bradial = b_field_vectors[:, :, 1]
+    btoroidal = b_field_vectors[:, :, 2]
 
-            bx = pv.x * bparallel + rv.x * bradial  # component of B along poloidal x
-            by = pv.y * bparallel + rv.y * bradial  # component of B along poloidal y
-            b_field_vectors_cartesian[i, j] = (bx, btoroidal, by)
-    sim._b_field_vectors = b_field_vectors
-    sim._b_field_vectors_cartesian = b_field_vectors_cartesian
+    vec_x = np.vectorize(lambda obj: obj.x)
+    vec_y = np.vectorize(lambda obj: obj.y)
 
-    # Load electron species
-    sim._electron_temperature = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.TE').data(), 0, 1)  # (32, 98) => (98, 32)
-    sim._electron_density = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.NE').data(), 0, 1)  # (32, 98) => (98, 32)
+    pvx = vec_x(mesh.poloidal_grid_basis[:, :, 0])  # x-coordinate of parallel basis vector
+    pvy = vec_y(mesh.poloidal_grid_basis[:, :, 0])  # y-coordinate of parallel basis vector
+    rvx = vec_x(mesh.poloidal_grid_basis[:, :, 1])  # x-coordinate of radial basis vector
+    rvy = vec_y(mesh.poloidal_grid_basis[:, :, 1])  # y-coordinate of radial basis vector
 
-    ############################
-    # Load each plasma species #
-    ############################
+    b_field_vectors_cartesian[:, :, 0] = pvx * bparallel + rvx * bradial  # component of B along poloidal x
+    b_field_vectors_cartesian[:, :, 2] = pvy * bparallel + rvy * bradial  # component of B along poloidal y
+    b_field_vectors_cartesian[:, :, 1] = btoroidal
 
-    # Master list of species, e.g. ['D0', 'D+1', 'C0', 'C+1', ...
-    species_list = conn.get('\SOLPS::TOP.IDENT.SPECIES').data()
-    try:
-        species_list = species_list.decode('UTF-8')
-    except AttributeError:  # Already a string
-        pass
-    sim._species_list = species_list.split()
-    sim._species_density = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.NA').data(), 0, 2)
-    sim._rad_par_flux = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.FNAY').data(), 0, 2)  # radial particle flux
-    sim._radial_area = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.SY').data(), 0, 1)  # radial contact area
+    sim.b_field = b_field_vectors
+    sim.b_field_cartesian = b_field_vectors_cartesian
 
-    # Load the neutral atom density from B2
+    # Load electron temperature and density
+    sim.electron_temperature = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.TE').data(), 0, 1)  # (32, 98) => (98, 32)
+    sim.electron_density = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.NE').data(), 0, 1)  # (32, 98) => (98, 32)
+
+    # Load species
+    sim.species_density = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.NA').data(), 0, 2)
+    sim.radial_particle_flux = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.FNAY').data(), 0, 2)  # radial particle flux
+    sim.radial_area = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.SY').data(), 0, 1)  # radial contact area
+
+    # Load the neutral atom density from Eirene if available
     dab2 = conn.get('\SOLPS::TOP.SNAPSHOT.DAB2').data()
     if isinstance(dab2, np.ndarray):
-        sim._b2_neutral_densities = np.swapaxes(dab2, 0, 2)
+        # Replace the species densities
+        neutral_densities = np.swapaxes(dab2, 0, 2)
 
-    sim._velocities_parallel = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.UA').data(), 0, 2)
-    sim._velocities_radial = np.zeros((ni, nj, len(sim.species_list)))
-    sim._velocities_toroidal = np.zeros((ni, nj, len(sim.species_list)))
-    sim._velocities_cartesian = np.zeros((ni, nj, len(sim.species_list), 3), dtype=np.float64)
+        neutral_i = 0  # counter for neutral atoms
+        for k, sp in enumerate(sim.species_list):
+            charge = sp[1]
+            if charge == 0:
+                sim.species_density[:, :, k] = neutral_densities[:, :, neutral_i]
+                neutral_i += 1
+
+    sim.velocities_parallel = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.UA').data(), 0, 2)
+    sim.velocities_radial = np.zeros((ni, nj, len(sim.species_list)))
+    sim.velocities_toroidal = np.zeros((ni, nj, len(sim.species_list)))
+    sim.velocities_cartesian = np.zeros((ni, nj, len(sim.species_list), 3))
 
     ################################################
     # Calculate the species' velocity distribution #
-    b2_neutral_i = 0  # counter for B2 neutrals
+
+    # calculate field component ratios for velocity conversion
+    bplane = np.sqrt(bparallel**2 + btoroidal**2)
+    parallel_to_toroidal_ratio = bparallel * btoroidal / (bplane**2)
+
+    # Calculate toroidal and radial velocity components
+    sim.velocities_toroidal = sim.velocities_parallel * parallel_to_toroidal_ratio[:, :, None]
+
     for k, sp in enumerate(sim.species_list):
+        i, j = np.where(sim.species_density[:, :-1, k] > 0)
+        sim.velocities_radial[i, j, k] = sim.radial_particle_flux[i, j, k] / sim.radial_area[i, j] / sim.species_density[i, j, k]
 
-        # Identify the species based on its symbol
-        symbol, charge = re.match(_SPECIES_REGEX, sp).groups()
-        charge = int(charge)
-
-        # If neutral and B" atomic density available,  use B2 density, otherwise use fluid species density.
-        if charge == 0 and (sim._b2_neutral_densities is not None):
-            species_dens_data = sim.b2_neutral_densities[:, :, b2_neutral_i]
-            b2_neutral_i += 1
-        else:
-            species_dens_data = sim.species_density[:, :, k]
-
-        for i in range(ni):
-            for j in range(nj):
-                # Load grid basis vectors
-                pv = mesh.poloidal_grid_basis[i, j, 0]  # parallel basis vector
-                rv = mesh.poloidal_grid_basis[i, j, 1]  # radial basis vector
-
-                # calculate field component ratios for velocity conversion
-                bparallel = b_field_vectors[i, j, 0]
-                btoroidal = b_field_vectors[i, j, 2]
-                bplane = sqrt(bparallel**2 + btoroidal**2)
-                parallel_to_toroidal_ratio = bparallel * btoroidal / (bplane**2)
-
-                # Calculate toroidal and radial velocity components
-                v_parallel = sim.velocities_parallel[i, j, k]  # straight from SOLPS 'UA' variable
-                v_toroidal = v_parallel * parallel_to_toroidal_ratio
-                sim.velocities_toroidal[i, j, k] = v_toroidal
-                # Special case for edge of mesh, no radial velocity expected.
-                try:
-                    if species_dens_data[i, j] == 0:
-                        v_radial = 0.0
-                    else:
-                        v_radial = sim.radial_particle_flux[i, j, k] / sim.radial_area[i, j] / species_dens_data[i, j]
-                except IndexError:
-                    v_radial = 0.0
-                sim.velocities_radial[i, j, k] = v_radial
-
-                # Convert velocities to cartesian coordinates
-                vx = pv.x * v_parallel + rv.x * v_radial  # component of v along poloidal x
-                vy = pv.y * v_parallel + rv.y * v_radial  # component of v along poloidal y
-                sim.velocities_cartesian[i, j, k, :] = (vx, v_toroidal, vy)
-
-    # Make Mesh Interpolator function for inside/outside mesh test.
-    inside_outside_data = np.ones(mesh.num_tris)
-    inside_outside = AxisymmetricMapper(Discrete2DMesh(mesh.vertex_coords, mesh.triangles, inside_outside_data, limit=False))
-    sim._inside_mesh = inside_outside
+    # Convert velocities to cartesian coordinates
+    sim.velocities_cartesian[:, :, :, 0] = pvx[:, :, None] * sim.velocities_parallel + rvx[:, :, None] * sim.velocities_radial  # component of v along poloidal x
+    sim.velocities_cartesian[:, :, :, 2] = pvy[:, :, None] * sim.velocities_parallel + rvy[:, :, None] * sim.velocities_radial  # component of v along poloidal y
+    sim.velocities_cartesian[:, :, :, 1] = sim.velocities_toroidal
 
     ###############################
     # Load extra data from server #
@@ -174,12 +161,7 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     else:
         neurad = np.zeros(brmrad.shape)
 
-    total_rad_data = np.zeros(vol.shape)
-    ni, nj = vol.shape
-    for i in range(ni):
-        for j in range(nj):
-            total_rad_data[i, j] = (linerad[i, j] + brmrad[i, j] + neurad[i, j]) / vol[i, j]
-    sim._total_rad = total_rad_data
+    sim.total_radiation = (linerad + brmrad + neurad) / vol
 
     return sim
 
@@ -226,28 +208,28 @@ def load_mesh_from_mdsplus(mds_connection):
             if i == nx - 1:
                 # Special case for end of array, repeat previous calculation.
                 # This is because I don't have access to the gaurd cells.
-                xp_x = cr[i, j] - cr[i-1, j]
-                xp_y = cz[i, j] - cz[i-1, j]
+                xp_x = cr[i, j] - cr[i - 1, j]
+                xp_y = cz[i, j] - cz[i - 1, j]
                 norm = np.sqrt(xp_x**2 + xp_y**2)
-                cell_poloidal_basis[i, j, 0] = Point2D(xp_x/norm, xp_y/norm)
+                cell_poloidal_basis[i, j, 0] = Point2D(xp_x / norm, xp_y / norm)
             else:
-                xp_x = cr[i+1, j] - cr[i, j]
-                xp_y = cz[i+1, j] - cz[i, j]
+                xp_x = cr[i + 1, j] - cr[i, j]
+                xp_y = cz[i + 1, j] - cz[i, j]
                 norm = np.sqrt(xp_x**2 + xp_y**2)
-                cell_poloidal_basis[i, j, 0] = Point2D(xp_x/norm, xp_y/norm)
+                cell_poloidal_basis[i, j, 0] = Point2D(xp_x / norm, xp_y / norm)
 
             # Work out cell's 2D radial vector in the poloidal plane
             if j == ny - 1:
                 # Special case for end of array, repeat previous calculation.
-                yr_x = cr[i, j] - cr[i, j-1]
-                yr_y = cz[i, j] - cz[i, j-1]
+                yr_x = cr[i, j] - cr[i, j - 1]
+                yr_y = cz[i, j] - cz[i, j - 1]
                 norm = np.sqrt(yr_x**2 + yr_y**2)
-                cell_poloidal_basis[i, j, 1] = Point2D(yr_x/norm, yr_y/norm)
+                cell_poloidal_basis[i, j, 1] = Point2D(yr_x / norm, yr_y / norm)
             else:
-                yr_x = cr[i, j+1] - cr[i, j]
-                yr_y = cz[i, j+1] - cz[i, j]
+                yr_x = cr[i, j + 1] - cr[i, j]
+                yr_y = cz[i, j + 1] - cz[i, j]
                 norm = np.sqrt(yr_x**2 + yr_y**2)
-                cell_poloidal_basis[i, j, 1] = Point2D(yr_x/norm, yr_y/norm)
+                cell_poloidal_basis[i, j, 1] = Point2D(yr_x / norm, yr_y / norm)
 
     mesh._poloidal_grid_basis = cell_poloidal_basis
 
