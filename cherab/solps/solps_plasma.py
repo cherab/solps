@@ -60,6 +60,8 @@ class SOLPSSimulation:
 
         self._electron_temperature = None
         self._electron_density = None
+        self._ion_temperature = None
+        self._neutral_temperature = None
         self._species_density = None
         self._radial_particle_flux = None
         self._radial_area = None
@@ -103,6 +105,35 @@ class SOLPSSimulation:
         _check_array("electron_temperature", value, (self.mesh.nx, self.mesh.ny))
 
         self._electron_temperature = value
+
+    @property
+    def ion_temperature(self):
+        """
+        Simulated ion temperatures at each mesh cell.
+        :return:
+        """
+        return self._ion_temperature
+
+    @ion_temperature.setter
+    def ion_temperature(self, value):
+        _check_array("ion_temperature", value, (self.mesh.nx, self.mesh.ny))
+
+        self._ion_temperature = value
+
+    @property
+    def neutral_temperature(self):
+        """
+        Array of neutral atom (effective) temperature at each mesh cell.
+        :return:
+        """
+        return self._neutral_temperature
+
+    @neutral_temperature.setter
+    def neutral_temperature(self, value):
+        num_neutrals = len([sp for sp in self.species_list if sp[1] == 0])
+        _check_array("neutral_temperature", value, (self.mesh.nx, self.mesh.ny, num_neutrals))
+
+        self._neutral_temperature = value
 
     @property
     def electron_density(self):
@@ -230,7 +261,6 @@ class SOLPSSimulation:
 
         self._total_rad = value
 
-
     # TODO: decide is this a 2D or 3D interface?
     @property
     def total_radiation_volume(self):
@@ -304,6 +334,8 @@ class SOLPSSimulation:
         state = {
             'mesh': self.mesh.__getstate__(),
             'electron_temperature': self._electron_temperature,
+            'ion_temperature': self._ion_temperature,
+            'neutral_temperature': self._neutral_temperature,
             'electron_density': self._electron_density,
             'species_list': self._species_list,
             'species_density': self._species_density,
@@ -326,6 +358,8 @@ class SOLPSSimulation:
     def __setstate__(self, state):
         self.mesh = SOLPSMesh(**state['mesh'])
         self._electron_temperature = state['electron_temperature']
+        self._ion_temperature = state['ion_temperature']
+        self._neutral_temperature = state['neutral_temperature']
         self._electron_density = state['electron_density']
         self._species_list = state['species_list']
         self._species_density = state['species_density']
@@ -515,14 +549,21 @@ class SOLPSSimulation:
         electron_te_interp = Discrete2DMesh(mesh.vertex_coords, mesh.triangles, triangle_data, limit=False)
         electron_temp = AxisymmetricMapper(electron_te_interp)
         triangle_data = _map_data_onto_triangles(self.electron_density)
-        electron_ne_interp = Discrete2DMesh.instance(electron_te_interp, triangle_data)
-        electron_dens = AxisymmetricMapper(electron_ne_interp)
+        electron_dens = AxisymmetricMapper(Discrete2DMesh.instance(electron_te_interp, triangle_data))
         electron_velocity = lambda x, y, z: Vector3D(0, 0, 0)
         plasma.electron_distribution = Maxwellian(electron_dens, electron_temp, electron_velocity, electron_mass)
+
+        # Ion temperature
+        triangle_data = _map_data_onto_triangles(self.ion_temperature)
+        ion_temp = AxisymmetricMapper(Discrete2DMesh.instance(electron_te_interp, triangle_data))
 
         if self.velocities_cartesian is None:
             print('Warning! No velocity field data available for this simulation.')
 
+        if self.neutral_temperature is None:
+            print('Warning! No neutral atom temperature data available for this simulation.')
+
+        neutral_i = 0  # neutrals count
         for k, sp in enumerate(self.species_list):
 
             species_type = sp[0]
@@ -530,6 +571,7 @@ class SOLPSSimulation:
 
             triangle_data = _map_data_onto_triangles(self.species_density[:, :, k])
             dens = AxisymmetricMapper(Discrete2DMesh.instance(electron_te_interp, triangle_data))
+
             # dens = SOLPSFunction3D(tri_index_lookup, tri_to_grid, self.species_density[:, :, k])
 
             # Create the velocity vector lookup function
@@ -538,7 +580,15 @@ class SOLPSSimulation:
             else:
                 velocity = lambda x, y, z: Vector3D(0, 0, 0)
 
-            distribution = Maxwellian(dens, electron_temp, velocity, species_type.atomic_weight * atomic_mass)
+            if charge or self.neutral_temperature is None:  # ions or neutral atoms (neutral temperature is not available)
+                distribution = Maxwellian(dens, ion_temp, velocity, species_type.atomic_weight * atomic_mass)
+
+            else:  # neutral atoms with neutral temperature
+                triangle_data = _map_data_onto_triangles(self.neutral_temperature[:, :, neutral_i])
+                neutral_temp = AxisymmetricMapper(Discrete2DMesh.instance(electron_te_interp, triangle_data))
+                distribution = Maxwellian(dens, neutral_temp, velocity, species_type.atomic_weight * atomic_mass)
+                neutral_i += 1
+
             plasma.composition.add(Species(species_type, charge, distribution))
 
         return plasma

@@ -85,9 +85,12 @@ def load_solps_from_raw_output(simulation_path, debug=False):
     sim.electron_temperature = mesh_data_dict['te'] / elementary_charge
     sim.electron_density = mesh_data_dict['ne']
 
+    # Load ion temperature
+    sim.ion_temperature = mesh_data_dict['ti'] / elementary_charge
+
     sim.species_density = mesh_data_dict['na']
 
-    # Load total radiated power from EIRENE output file
+    # Load additional data from EIRENE output file
     eirene = load_fort44_file(eirene_fort44_file, debug=debug)
     sim.eirene_simulation = eirene
 

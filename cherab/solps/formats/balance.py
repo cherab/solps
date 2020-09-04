@@ -86,6 +86,9 @@ def load_solps_from_balance(balance_filename):
     sim.electron_temperature = fhandle.variables['te'].data.copy() / el_charge
     sim.electron_density = fhandle.variables['ne'].data.copy()
 
+    # Load ion temperature
+    sim.ion_temperature = fhandle.variables['ti'].data.copy() / el_charge
+
     tmp = fhandle.variables['na'].data.copy()
     tmp = np.moveaxis(tmp, 0, -1)
     sim.species_density = tmp
