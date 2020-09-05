@@ -69,13 +69,10 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     bradial = b_field_vectors[:, :, 1]
     btoroidal = b_field_vectors[:, :, 2]
 
-    vec_x = np.vectorize(lambda obj: obj.x)
-    vec_y = np.vectorize(lambda obj: obj.y)
-
-    pvx = vec_x(mesh.poloidal_grid_basis[:, :, 0])  # x-coordinate of parallel basis vector
-    pvy = vec_y(mesh.poloidal_grid_basis[:, :, 0])  # y-coordinate of parallel basis vector
-    rvx = vec_x(mesh.poloidal_grid_basis[:, :, 1])  # x-coordinate of radial basis vector
-    rvy = vec_y(mesh.poloidal_grid_basis[:, :, 1])  # y-coordinate of radial basis vector
+    pvx = mesh.parallel_basis_vector[:, :, 0]  # x-coordinate of parallel basis vector
+    pvy = mesh.parallel_basis_vector[:, :, 1]  # y-coordinate of parallel basis vector
+    rvx = mesh.radial_basis_vector[:, :, 0]  # x-coordinate of radial basis vector
+    rvy = mesh.radial_basis_vector[:, :, 1]  # y-coordinate of radial basis vector
 
     b_field_vectors_cartesian[:, :, 0] = pvx * bparallel + rvx * bradial  # component of B along poloidal x
     b_field_vectors_cartesian[:, :, 2] = pvy * bparallel + rvy * bradial  # component of B along poloidal y
@@ -145,7 +142,6 @@ def load_solps_from_mdsplus(mds_server, ref_number):
 
     ####################
     # Integrated power #
-    vol = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.VOL').data(), 0, 1)  # TODO - this should be a mesh property
     linerad = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.RQRAD').data(), 0, 2)
     linerad = np.sum(linerad, axis=2)
     brmrad = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.RQBRM').data(), 0, 2)
@@ -159,7 +155,7 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     else:
         neurad = np.zeros(brmrad.shape)
 
-    sim.total_radiation = (linerad + brmrad + neurad) / vol
+    sim.total_radiation = (linerad + brmrad + neurad) / mesh.vol
 
     return sim
 
@@ -186,49 +182,8 @@ def load_mesh_from_mdsplus(mds_connection):
     #############################
 
     # add the vessel geometry
-    mesh.vessel = mds_connection.get('\SOLPS::TOP.SNAPSHOT.GRID:VESSEL').data()
-
-    # Load the centre points of the grid cells.
-    cr = np.swapaxes(mds_connection.get('\TOP.SNAPSHOT.GRID:CR').data(), 0, 1)
-    cz = np.swapaxes(mds_connection.get('\TOP.SNAPSHOT.GRID:CZ').data(), 0, 1)
-    mesh._cr = cr
-    mesh._cz = cz
-
-    # Load cell basis vectors
-    nx = mesh.nx
-    ny = mesh.ny
-
-    cell_poloidal_basis = np.empty((nx, ny, 2), dtype=object)
-    for i in range(nx):
-        for j in range(ny):
-
-            # Work out cell's 2D parallel vector in the poloidal plane
-            if i == nx - 1:
-                # Special case for end of array, repeat previous calculation.
-                # This is because I don't have access to the gaurd cells.
-                xp_x = cr[i, j] - cr[i - 1, j]
-                xp_y = cz[i, j] - cz[i - 1, j]
-                norm = np.sqrt(xp_x**2 + xp_y**2)
-                cell_poloidal_basis[i, j, 0] = Point2D(xp_x / norm, xp_y / norm)
-            else:
-                xp_x = cr[i + 1, j] - cr[i, j]
-                xp_y = cz[i + 1, j] - cz[i, j]
-                norm = np.sqrt(xp_x**2 + xp_y**2)
-                cell_poloidal_basis[i, j, 0] = Point2D(xp_x / norm, xp_y / norm)
-
-            # Work out cell's 2D radial vector in the poloidal plane
-            if j == ny - 1:
-                # Special case for end of array, repeat previous calculation.
-                yr_x = cr[i, j] - cr[i, j - 1]
-                yr_y = cz[i, j] - cz[i, j - 1]
-                norm = np.sqrt(yr_x**2 + yr_y**2)
-                cell_poloidal_basis[i, j, 1] = Point2D(yr_x / norm, yr_y / norm)
-            else:
-                yr_x = cr[i, j + 1] - cr[i, j]
-                yr_y = cz[i, j + 1] - cz[i, j]
-                norm = np.sqrt(yr_x**2 + yr_y**2)
-                cell_poloidal_basis[i, j, 1] = Point2D(yr_x / norm, yr_y / norm)
-
-    mesh._poloidal_grid_basis = cell_poloidal_basis
+    vessel = mds_connection.get('\SOLPS::TOP.SNAPSHOT.GRID:VESSEL').data()
+    if isinstance(vessel, np.ndarray):
+        mesh.vessel = vessel
 
     return mesh

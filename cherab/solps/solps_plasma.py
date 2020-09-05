@@ -50,8 +50,8 @@ class SOLPSSimulation:
             raise ValueError('Argument "mesh" must be a SOLPSMesh instance.')
 
         # Make Mesh Interpolator function for inside/outside mesh test.
-        inside_outside_data = np.ones(mesh.num_tris)
-        inside_outside = AxisymmetricMapper(Discrete2DMesh(mesh.vertex_coords, mesh.triangles, inside_outside_data, limit=False))
+        inside_outside_data = np.ones(mesh.num_triangles)
+        inside_outside = AxisymmetricMapper(Discrete2DMesh(mesh.vertex_coordinates, mesh.triangles, inside_outside_data, limit=False))
         self._inside_mesh = inside_outside
 
         if not len(species_list):
@@ -275,7 +275,7 @@ class SOLPSSimulation:
         """
 
         mapped_radiation_data = _map_data_onto_triangles(self._total_rad)
-        radiation_mesh_2d = Discrete2DMesh(self.mesh.vertex_coords, self.mesh.triangles, mapped_radiation_data, limit=False)
+        radiation_mesh_2d = Discrete2DMesh(self.mesh.vertex_coordinates, self.mesh.triangles, mapped_radiation_data, limit=False)
         # return AxisymmetricMapper(radiation_mesh_2d)
         return radiation_mesh_2d
 
@@ -546,7 +546,7 @@ class SOLPSSimulation:
 
         # Create electron species
         triangle_data = _map_data_onto_triangles(self.electron_temperature)
-        electron_te_interp = Discrete2DMesh(mesh.vertex_coords, mesh.triangles, triangle_data, limit=False)
+        electron_te_interp = Discrete2DMesh(mesh.vertex_coordinates, mesh.triangles, triangle_data, limit=False)
         electron_temp = AxisymmetricMapper(electron_te_interp)
         triangle_data = _map_data_onto_triangles(self.electron_density)
         electron_dens = AxisymmetricMapper(Discrete2DMesh.instance(electron_te_interp, triangle_data))

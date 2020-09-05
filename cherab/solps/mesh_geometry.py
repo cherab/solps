@@ -18,7 +18,7 @@
 # under the Licence.
 
 # External imports
-from collections import namedtuple
+# from collections import namedtuple
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -26,7 +26,7 @@ from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
 from raysect.core.math.function.float import Discrete2DMesh
 
-INFINITY = 1E99
+# INFINITY = 1E99
 
 
 class SOLPSMesh:
@@ -40,80 +40,87 @@ class SOLPSMesh:
     triangle vertices. Therefore, each SOLPS rectangular cell is split into two triangular cells. The data points are
     later interpolated onto the vertex points.
 
-    :param ndarray cr_r: Array of cell vertex r coordinates, must be 3 dimensional. Example shape is (98 x 32 x 4).
-    :param ndarray cr_z: Array of cell vertex z coordinates, must be 3 dimensional. Example shape is (98 x 32 x 4).
+    :param ndarray r: Array of cell vertex r coordinates, must be 3 dimensional. Example shape is (98 x 32 x 4).
+    :param ndarray z: Array of cell vertex z coordinates, must be 3 dimensional. Example shape is (98 x 32 x 4).
     :param ndarray vol: Array of cell volumes. Example shape is (98 x 32).
     """
 
-    def __init__(self, cr_r, cr_z, vol):
+    def __init__(self, r, z, vol):
 
-        self._cr = None
-        self._cz = None
-        self._poloidal_grid_basis = None
+        if r.shape != z.shape:
+            raise ValueError('Shape of r array: %s mismatch the shape of z array: %s.' % (r.shape, z.shape))
 
-        nx = cr_r.shape[0]
-        ny = cr_r.shape[1]
-        self._nx = nx
-        self._ny = ny
+        if vol.shape != r.shape[:-1]:
+            raise ValueError('Shape of vol array: %s mismatch the grid dimentions: %s.' % (vol.shape, r.shape[:-1]))
 
-        self._r = cr_r
-        self._z = cr_z
+        self._cr = r.sum(2) / 4.
+        self._cz = z.sum(2) / 4.
+
+        self._nx = r.shape[0]
+        self._ny = r.shape[1]
+
+        self._r = r
+        self._z = z
 
         self._vol = vol
 
-        # Iterate through the arrays from MDS plus to pull out unique vertices
-        unique_vertices = {}
-        vertex_id = 0
-        for i in range(nx):
-            for j in range(ny):
-                for k in range(4):
-                    vertex = (cr_r[i, j, k], cr_z[i, j, k])
-                    try:
-                        unique_vertices[vertex]
-                    except KeyError:
-                        unique_vertices[vertex] = vertex_id
-                        vertex_id += 1
+        self.vessel = None
 
-        # Load these unique vertices into a numpy array for later use in Raysect's mesh interpolator object.
-        self.num_vertices = len(unique_vertices)
-        self.vertex_coords = np.zeros((self.num_vertices, 2), dtype=np.float64)
-        for vertex, vertex_id in unique_vertices.items():
-            self.vertex_coords[vertex_id, :] = vertex
+        # Calculating parallel basis vector
+        self._parallel_basis_vector = np.zeros((self._nx, self._ny, 2))
+        vec_r = r[:, :, 1] - r[:, :, 0] + r[:, :, 3] - r[:, :, 2]
+        vec_z = z[:, :, 1] - z[:, :, 0] + z[:, :, 3] - z[:, :, 2]
+        vec_magn = np.sqrt(vec_r**2 + vec_z**2)
+        self._parallel_basis_vector[:, :, 0] = vec_r / vec_magn
+        self._parallel_basis_vector[:, :, 1] = vec_z / vec_magn
+
+        # Calculating radial basis vector
+        self._radial_basis_vector = np.zeros((self._nx, self._ny, 2))
+        vec_r = r[:, :, 2] - r[:, :, 0] + r[:, :, 3] - r[:, :, 1]
+        vec_z = z[:, :, 2] - z[:, :, 0] + z[:, :, 3] - z[:, :, 1]
+        vec_magn = np.sqrt(vec_r**2 + vec_z**2)
+        self._radial_basis_vector[:, :, 0] = vec_r / vec_magn
+        self._radial_basis_vector[:, :, 1] = vec_z / vec_magn
+
+        # Test for basis vector calculation
+        # plt.quiver(self._cr[:, 0], self._cz[:, 0], self._radial_basis_vector[:, 0, 0], self._radial_basis_vector[:, 0, 1], color='k')
+        # plt.quiver(self._cr[:, 0], self._cz[:, 0], self._parallel_basis_vector[:, 0, 0], self._parallel_basis_vector[:, 0, 1], color='r')
+        # plt.quiver(self._cr[:, -1], self._cz[:, -1], self._radial_basis_vector[:, -1, 0], self._radial_basis_vector[:, -1, 1], color='k')
+        # plt.quiver(self._cr[:, -1], self._cz[:, -1], self._parallel_basis_vector[:, -1, 0], self._parallel_basis_vector[:, -1, 1], color='r')
+        # plt.gca().set_aspect('equal')
+        # plt.show()
+
+        # Finding unique vertices
+        vertices = np.array([r.flatten(), z.flatten()]).T
+        self._vertex_coords, unique_vertices = np.unique(vertices, axis=0, return_inverse=True)
+        self._num_vertices = self._vertex_coords.shape[0]
 
         # Work out the extent of the mesh.
-        rmin = cr_r.flatten().min()
-        rmax = cr_r.flatten().max()
-        zmin = cr_z.flatten().min()
-        zmax = cr_z.flatten().max()
-        self.mesh_extent = {"minr": rmin, "maxr": rmax, "minz": zmin, "maxz": zmax}
+        self._mesh_extent = {"minr": r.min(), "maxr": r.max(), "minz": z.min(), "maxz": z.max()}
 
         # Number of triangles must be equal to number of rectangle centre points times 2.
-        self.num_tris = nx * ny * 2
-        self.triangles = np.zeros((self.num_tris, 3), dtype=np.int32)
+        self._num_tris = self._nx * self._ny * 2
+        self._triangles = np.zeros((self._num_tris, 3), dtype=np.int32)
+        self._triangle_to_grid_map = np.zeros((self._num_tris, 2), dtype=np.int32)
 
-        self._triangle_to_grid_map = np.zeros((nx*ny*2, 2), dtype=np.int32)
-        tri_index = 0
-        for i in range(nx):
-            for j in range(ny):
-                # Pull out the index number for each unique vertex in this rectangular cell.
-                # Unusual vertex indexing is based on SOLPS output, see Matlab code extract from David Moulton.
-                # cell_r = [r(i,j,1),r(i,j,3),r(i,j,4),r(i,j,2)];
-                v1_id = unique_vertices[(cr_r[i, j, 0], cr_z[i, j, 0])]
-                v2_id = unique_vertices[(cr_r[i, j, 2], cr_z[i, j, 2])]
-                v3_id = unique_vertices[(cr_r[i, j, 3], cr_z[i, j, 3])]
-                v4_id = unique_vertices[(cr_r[i, j, 1], cr_z[i, j, 1])]
+        # Pull out the index number for each unique vertex in this rectangular cell.
+        # Unusual vertex indexing is based on SOLPS output, see Matlab code extract from David Moulton.
+        self._triangles[0::2, 0] = unique_vertices[0::4]
+        self._triangles[0::2, 1] = unique_vertices[2::4]
+        self._triangles[0::2, 2] = unique_vertices[3::4]
+        # Split the quad cell into two triangular cells.
+        self._triangles[1::2, 0] = unique_vertices[3::4]
+        self._triangles[1::2, 1] = unique_vertices[1::4]
+        self._triangles[1::2, 2] = unique_vertices[0::4]
 
-                # Split the quad cell into two triangular cells.
-                # Each triangle cell is mapped to the tuple ID (ix, iy) of its parent mesh cell.
-                self.triangles[tri_index, :] = (v1_id, v2_id, v3_id)
-                self._triangle_to_grid_map[tri_index, :] = (i, j)
-                tri_index += 1
-                self.triangles[tri_index, :] = (v3_id, v4_id, v1_id)
-                self._triangle_to_grid_map[tri_index, :] = (i, j)
-                tri_index += 1
+        # Each triangle cell is mapped to the tuple ID (ix, iy) of its parent mesh cell.
+        xm, ym = np.meshgrid(np.arange(self._nx, dtype=np.int32), np.arange(self._ny, dtype=np.int32), indexing='ij')
+        self._triangle_to_grid_map[::2, 0] = xm.flatten()
+        self._triangle_to_grid_map[::2, 1] = ym.flatten()
+        self._triangle_to_grid_map[1::2, :] = self._triangle_to_grid_map[::2, :]
 
-        tri_indices = np.arange(self.num_tris, dtype=np.int32)
-        self._tri_index_loopup = Discrete2DMesh(self.vertex_coords, self.triangles, tri_indices)
+        tri_indices = np.arange(self._num_tris, dtype=np.int32)
+        self._tri_index_loopup = Discrete2DMesh(self._vertex_coords, self._triangles, tri_indices)
 
     @property
     def nx(self):
@@ -136,14 +143,49 @@ class SOLPSMesh:
         return self._cz
 
     @property
+    def r(self):
+        """R-coordinates of the cell vertices."""
+        return self._r
+
+    @property
+    def z(self):
+        """Z-coordinate of the cell vertices."""
+        return self._z
+
+    @property
     def vol(self):
         """Volume/area of each grid cell."""
         return self._vol
 
     @property
-    def poloidal_grid_basis(self):
+    def vertex_coordinates(self):
+        """RZ-coordinates of unique vertices."""
+        return self._vertex_coords
+
+    @property
+    def num_vertices(self):
+        """Total number of unique vertices."""
+        return self._num_vertices
+
+    @property
+    def mesh_extent(self):
+        """Extent of the mesh. A dictionary with minr, maxr, minz and maxz keys."""
+        return self._mesh_extent
+
+    @property
+    def num_triangles(self):
+        """Total number of triangles (the number of cells doubled)."""
+        return self._num_tris
+
+    @property
+    def triangles(self):
+        """Array of triangle vertex indices with (num_thiangles, 3) shape."""
+        return self._triangles
+
+    @property
+    def parallel_basis_vector(self):
         """
-        Array of 2D basis vectors for grid cells.
+        Array of 2D parallel basis vectors for grid cells.
 
         For each cell there is a parallel and radial basis vector.
 
@@ -151,9 +193,24 @@ class SOLPSMesh:
         bx = (p_x  r_x) ( b_p )
         by   (p_y  r_y) ( b_r )
 
-        :return: ndarray with shape (nx, ny, 2) where the two basis vectors are [parallel, radial] respectively.
+        :return: ndarray with shape (nx, ny, 2).
         """
-        return self._poloidal_grid_basis
+        return self._parallel_basis_vector
+
+    @property
+    def radial_basis_vector(self):
+        """
+        Array of 2D radial basis vectors for grid cells.
+
+        For each cell there is a parallel and radial basis vector.
+
+        Any vector on the poloidal grid can be converted to cartesian with the following transformation.
+        bx = (p_x  r_x) ( b_p )
+        by   (p_y  r_y) ( b_r )
+
+        :return: ndarray with shape (nx, ny, 2).
+        """
+        return self._radial_basis_vector
 
     @property
     def triangle_to_grid_map(self):
@@ -177,9 +234,9 @@ class SOLPSMesh:
 
     def __getstate__(self):
         state = {
-            'cr_r': self._r,
-            'cr_z': self._z,
-            'vol': self._vol,
+            'r': self._r,
+            'z': self._z,
+            'vol': self._vol
         }
         return state
 
@@ -190,15 +247,17 @@ class SOLPSMesh:
         fig, ax = plt.subplots()
         patches = []
         for triangle in self.triangles:
-            vertices = self.vertex_coords[triangle]
+            vertices = self.vertex_coordinates[triangle]
             patches.append(Polygon(vertices, closed=True))
         p = PatchCollection(patches, facecolors='none', edgecolors='b')
         ax.add_collection(p)
         ax.axis('equal')
-        return ax
 
         # Code for plotting vessel geometry if available
-        # for i in range(vessel.shape[0]):
-        #     plt.plot([vessel[i, 0], vessel[i, 2]], [vessel[i, 1], vessel[i, 3]], 'k')
-        # for i in range(vessel.shape[0]):
-        #     plt.plot([vessel[i, 0], vessel[i, 2]], [vessel[i, 1], vessel[i, 3]], 'or')
+        # if self.vessel is not None:
+        #     for i in range(self.vessel.shape[0]):
+        #         ax.plot([self.vessel[i, 0], self.vessel[i, 2]], [self.vessel[i, 1], self.vessel[i, 3]], 'k')
+        #     for i in range(self.vessel.shape[0]):
+        #         ax.plot([self.vessel[i, 0], self.vessel[i, 2]], [self.vessel[i, 1], self.vessel[i, 3]], 'or')
+
+        return ax
