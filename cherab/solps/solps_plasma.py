@@ -598,18 +598,10 @@ def _map_data_onto_triangles(solps_dataset):
     :return: New 1D ndarray with shape (98*32*2)
     """
 
-    solps_mesh_shape = solps_dataset.shape
-    triangle_data = np.zeros(solps_mesh_shape[0] * solps_mesh_shape[1] * 2, dtype=np.float64)
+    triangle_data = np.zeros(solps_dataset.size * 2, dtype=np.float64)
 
-    tri_index = 0
-    for i in range(solps_mesh_shape[0]):
-        for j in range(solps_mesh_shape[1]):
-
-            # Same data
-            triangle_data[tri_index] = solps_dataset[i, j]
-            tri_index += 1
-            triangle_data[tri_index] = solps_dataset[i, j]
-            tri_index += 1
+    triangle_data[::2] = solps_dataset.flatten()
+    triangle_data[1::2] = triangle_data[::2]
 
     return triangle_data
 
