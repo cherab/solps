@@ -68,16 +68,16 @@ class SOLPSMesh:
 
         # Calculating parallel basis vector
         self._parallel_basis_vector = np.zeros((self._nx, self._ny, 2))
-        vec_r = r[:, :, 1] - r[:, :, 0] + r[:, :, 3] - r[:, :, 2]
-        vec_z = z[:, :, 1] - z[:, :, 0] + z[:, :, 3] - z[:, :, 2]
+        vec_r = r[:, :, 1] - r[:, :, 0]
+        vec_z = z[:, :, 1] - z[:, :, 0]
         vec_magn = np.sqrt(vec_r**2 + vec_z**2)
         self._parallel_basis_vector[:, :, 0] = vec_r / vec_magn
         self._parallel_basis_vector[:, :, 1] = vec_z / vec_magn
 
         # Calculating radial basis vector
         self._radial_basis_vector = np.zeros((self._nx, self._ny, 2))
-        vec_r = r[:, :, 2] - r[:, :, 0] + r[:, :, 3] - r[:, :, 1]
-        vec_z = z[:, :, 2] - z[:, :, 0] + z[:, :, 3] - z[:, :, 1]
+        vec_r = r[:, :, 2] - r[:, :, 0]
+        vec_z = z[:, :, 2] - z[:, :, 0]
         vec_magn = np.sqrt(vec_r**2 + vec_z**2)
         self._radial_basis_vector[:, :, 0] = vec_r / vec_magn
         self._radial_basis_vector[:, :, 1] = vec_z / vec_magn
