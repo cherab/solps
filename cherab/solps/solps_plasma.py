@@ -63,8 +63,6 @@ class SOLPSSimulation:
         self._ion_temperature = None
         self._neutral_temperature = None
         self._species_density = None
-        self._radial_particle_flux = None
-        self._radial_area = None
         self._velocities = None
         self._velocities_cartesian = None
         self._total_rad = None
@@ -160,34 +158,6 @@ class SOLPSSimulation:
         _check_array("species_density", value, (self.mesh.nx, self.mesh.ny, len(self.species_list)))
 
         self._species_density = value
-
-    @property
-    def radial_particle_flux(self):
-        """
-        Blah
-        :return:
-        """
-        return self._radial_particle_flux
-
-    @radial_particle_flux.setter
-    def radial_particle_flux(self, value):
-        _check_array("radial_particle_flux", value, (self.mesh.nx, self.mesh.ny - 1, len(self.species_list)))
-
-        self._radial_particle_flux = value
-
-    @property
-    def radial_area(self):
-        """
-        Blah
-        :return:
-        """
-        return self._radial_area
-
-    @radial_area.setter
-    def radial_area(self, value):
-        _check_array("radial_area", value, (self.mesh.nx, self.mesh.ny - 1))
-
-        self._radial_area = value
 
     @property
     def velocities(self):
@@ -339,8 +309,6 @@ class SOLPSSimulation:
             'electron_density': self._electron_density,
             'species_list': self._species_list,
             'species_density': self._species_density,
-            'radial_particle_flux': self._radial_particle_flux,
-            'radial_area': self._radial_area,
             'velocities': self._velocities,
             'velocities_cartesian': self._velocities_cartesian,
             'inside_mesh': self._inside_mesh,
@@ -361,8 +329,6 @@ class SOLPSSimulation:
         self._electron_density = state['electron_density']
         self._species_list = state['species_list']
         self._species_density = state['species_density']
-        self._radial_particle_flux = state['radial_particle_flux']
-        self._radial_area = state['radial_area']
         self._velocities = state['velocities']
         self._velocities_cartesian = state['velocities_cartesian']
         self._inside_mesh = state['inside_mesh']

@@ -24,6 +24,8 @@ from cherab.core.atomic.elements import lookup_isotope
 from cherab.solps.mesh_geometry import SOLPSMesh
 from cherab.solps.solps_plasma import SOLPSSimulation, prefer_element
 
+from matplotlib import pyplot as plt
+
 
 # TODO: violates interface of SOLPSSimulation.... puts numpy arrays in the object where they should be function2D
 def load_solps_from_mdsplus(mds_server, ref_number):
@@ -72,10 +74,8 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     # Load ion temperature
     sim.ion_temperature = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.TI').data(), 0, 1)
 
-    # Load species
+    # Load species density
     sim.species_density = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.NA').data(), 0, 2)
-    sim.radial_particle_flux = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.FNAY').data(), 0, 2)  # radial particle flux
-    sim.radial_area = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.SY').data(), 0, 1)  # radial contact area
 
     # Load the neutral atom density from Eirene if available
     dab2 = conn.get('\SOLPS::TOP.SNAPSHOT.DAB2').data()
@@ -98,6 +98,7 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     # TODO: Eirene data (TOP.SNAPSHOT.PFLA, TOP.SNAPSHOT.RFLA) should be used for neutral atoms.
     velocities = np.zeros((ni, nj, len(sim.species_list), 3))
     velocities[:, :, :, 0] = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.UA').data(), 0, 2)
+
     ################################################
     # Calculate the species' velocity distribution #
 
@@ -105,12 +106,16 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     bplane2 = sim.b_field[:, :, 0]**2 + sim.b_field[:, :, 2]**2
     parallel_to_toroidal_ratio = sim.b_field[:, :, 0] * sim.b_field[:, :, 2] / bplane2
 
-    # Calculate toroidal and radial velocity components
+    # Calculate toroidal velocity components
     velocities[:, :, :, 2] = velocities[:, :, :, 0] * parallel_to_toroidal_ratio[:, :, None]
 
+    # Radial velocity is obtained from radial particle flux
+    radial_particle_flux = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.FNAY').data(), 0, 2)  # radial particle flux
+    radial_area = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.SY').data(), 0, 1)  # radial contact area
     for k, sp in enumerate(sim.species_list):
-        i, j = np.where(sim.species_density[:, :-1, k] > 0)
-        velocities[i, j, k, 1] = sim.radial_particle_flux[i, j, k] / sim.radial_area[i, j] / sim.species_density[i, j, k]
+        i, j = np.where(sim.species_density[:, :-1, k] > 0)  # radial_area array corresponds to [:, 1:] in mesh, so maybe [:, 1:, k]
+        velocities[i, j, k, 1] = radial_particle_flux[i, j, k] / radial_area[i, j] / sim.species_density[i, j, k]
+
     sim.velocities = velocities
     # sim.velocities_cartesian is created authomatically
 
