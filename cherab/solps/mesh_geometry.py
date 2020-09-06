@@ -82,6 +82,10 @@ class SOLPSMesh:
         self._radial_basis_vector[:, :, 0] = vec_r / vec_magn
         self._radial_basis_vector[:, :, 1] = vec_z / vec_magn
 
+        # For convertion from Cartesian to poloidal
+        self._inv_det = 1. / (self._parallel_basis_vector[:, :, 0] * self._radial_basis_vector[:, :, 1] -
+                              self._parallel_basis_vector[:, :, 1] * self._radial_basis_vector[:, :, 0])
+
         # Test for basis vector calculation
         # plt.quiver(self._cr[:, 0], self._cz[:, 0], self._radial_basis_vector[:, 0, 0], self._radial_basis_vector[:, 0, 1], color='k')
         # plt.quiver(self._cr[:, 0], self._cz[:, 0], self._parallel_basis_vector[:, 0, 0], self._parallel_basis_vector[:, 0, 1], color='r')
@@ -239,6 +243,36 @@ class SOLPSMesh:
             'vol': self._vol
         }
         return state
+
+    def to_cartesian(self, vec_pol):
+        """
+        Converts the 2D vector defined on mesh from poloidal to cartesian coordinates.
+        :param ndarray vec_pol: Array of 2D vector with with shape (nx, ny, 2).
+            [:, :, 0] - parallel component, [:, :, 1] - radial component
+
+        :return: ndarray with shape (nx, ny, 2)
+        """
+        vec_cart = np.zeros((self._nx, self._ny, 2))
+        vec_cart[:, :, 0] = self._parallel_basis_vector[:, :, 0] * vec_pol[:, :, 0] + self._radial_basis_vector[:, :, 0] * vec_pol[:, :, 1]
+        vec_cart[:, :, 1] = self._parallel_basis_vector[:, :, 1] * vec_pol[:, :, 0] + self._radial_basis_vector[:, :, 1] * vec_pol[:, :, 1]
+
+        return vec_cart
+
+    def to_poloidal(self, vec_cart):
+        """
+        Converts the 2D vector defined on mesh from cartesian to poloidal coordinates.
+        :param ndarray vector_on_mesh: Array of 2D vector with with shape (nx, ny, 2).
+            [:, :, 0] - R component, [:, :, 1] - Z component
+
+        :return: ndarray with shape (nx, ny, 2)
+        """
+        vec_pol = np.zeros((self._nx, self._ny, 2))
+        vec_pol[:, :, 0] = self._inv_det * (self._radial_basis_vector[:, :, 1] * vec_cart[:, :, 0] -
+                                            self._radial_basis_vector[:, :, 0] * vec_cart[:, :, 1])
+        vec_pol[:, :, 1] = self._inv_det * (self._parallel_basis_vector[:, :, 0] * vec_cart[:, :, 1] -
+                                            self._parallel_basis_vector[:, :, 1] * vec_cart[:, :, 0])
+
+        return vec_pol
 
     def plot_mesh(self):
         """

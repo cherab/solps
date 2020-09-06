@@ -62,24 +62,8 @@ def load_solps_from_mdsplus(mds_server, ref_number):
 
     ##########################
     # Magnetic field vectors #
-    b_field_vectors = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.B').data(), 0, 2)[:, :, :3]
-    b_field_vectors_cartesian = np.zeros((ni, nj, 3))
-
-    bparallel = b_field_vectors[:, :, 0]
-    bradial = b_field_vectors[:, :, 1]
-    btoroidal = b_field_vectors[:, :, 2]
-
-    pvx = mesh.parallel_basis_vector[:, :, 0]  # x-coordinate of parallel basis vector
-    pvy = mesh.parallel_basis_vector[:, :, 1]  # y-coordinate of parallel basis vector
-    rvx = mesh.radial_basis_vector[:, :, 0]  # x-coordinate of radial basis vector
-    rvy = mesh.radial_basis_vector[:, :, 1]  # y-coordinate of radial basis vector
-
-    b_field_vectors_cartesian[:, :, 0] = pvx * bparallel + rvx * bradial  # component of B along poloidal x
-    b_field_vectors_cartesian[:, :, 2] = pvy * bparallel + rvy * bradial  # component of B along poloidal y
-    b_field_vectors_cartesian[:, :, 1] = btoroidal
-
-    sim.b_field = b_field_vectors
-    sim.b_field_cartesian = b_field_vectors_cartesian
+    sim.b_field = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.B').data(), 0, 2)[:, :, :3]
+    # sim.b_field_cartesian is created authomatically
 
     # Load electron temperature and density
     sim.electron_temperature = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.TE').data(), 0, 1)  # (32, 98) => (98, 32)
@@ -112,29 +96,23 @@ def load_solps_from_mdsplus(mds_server, ref_number):
         sim.neutral_temperature = np.swapaxes(tab2, 0, 2)
 
     # TODO: Eirene data (TOP.SNAPSHOT.PFLA, TOP.SNAPSHOT.RFLA) should be used for neutral atoms.
-    sim.velocities_parallel = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.UA').data(), 0, 2)
-    sim.velocities_radial = np.zeros((ni, nj, len(sim.species_list)))
-    sim.velocities_toroidal = np.zeros((ni, nj, len(sim.species_list)))
-    sim.velocities_cartesian = np.zeros((ni, nj, len(sim.species_list), 3))
-
+    velocities = np.zeros((ni, nj, len(sim.species_list), 3))
+    velocities[:, :, :, 0] = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.UA').data(), 0, 2)
     ################################################
     # Calculate the species' velocity distribution #
 
     # calculate field component ratios for velocity conversion
-    bplane2 = bparallel**2 + btoroidal**2
-    parallel_to_toroidal_ratio = bparallel * btoroidal / bplane2
+    bplane2 = sim.b_field[:, :, 0]**2 + sim.b_field[:, :, 2]**2
+    parallel_to_toroidal_ratio = sim.b_field[:, :, 0] * sim.b_field[:, :, 2] / bplane2
 
     # Calculate toroidal and radial velocity components
-    sim.velocities_toroidal = sim.velocities_parallel * parallel_to_toroidal_ratio[:, :, None]
+    velocities[:, :, :, 2] = velocities[:, :, :, 0] * parallel_to_toroidal_ratio[:, :, None]
 
     for k, sp in enumerate(sim.species_list):
         i, j = np.where(sim.species_density[:, :-1, k] > 0)
-        sim.velocities_radial[i, j, k] = sim.radial_particle_flux[i, j, k] / sim.radial_area[i, j] / sim.species_density[i, j, k]
-
-    # Convert velocities to cartesian coordinates
-    sim.velocities_cartesian[:, :, :, 0] = pvx[:, :, None] * sim.velocities_parallel + rvx[:, :, None] * sim.velocities_radial  # component of v along poloidal x
-    sim.velocities_cartesian[:, :, :, 2] = pvy[:, :, None] * sim.velocities_parallel + rvy[:, :, None] * sim.velocities_radial  # component of v along poloidal y
-    sim.velocities_cartesian[:, :, :, 1] = sim.velocities_toroidal
+        velocities[i, j, k, 1] = sim.radial_particle_flux[i, j, k] / sim.radial_area[i, j] / sim.species_density[i, j, k]
+    sim.velocities = velocities
+    # sim.velocities_cartesian is created authomatically
 
     ###############################
     # Load extra data from server #

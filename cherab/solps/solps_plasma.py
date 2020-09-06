@@ -65,9 +65,7 @@ class SOLPSSimulation:
         self._species_density = None
         self._radial_particle_flux = None
         self._radial_area = None
-        self._velocities_parallel = None
-        self._velocities_radial = None
-        self._velocities_toroidal = None
+        self._velocities = None
         self._velocities_cartesian = None
         self._total_rad = None
         self._b_field_vectors = None
@@ -192,34 +190,20 @@ class SOLPSSimulation:
         self._radial_area = value
 
     @property
-    def velocities_parallel(self):
-        return self._velocities_parallel
+    def velocities(self):
+        return self._velocities_vectors
 
-    @velocities_parallel.setter
-    def velocities_parallel(self, value):
-        _check_array("velocities_parallel", value, (self.mesh.nx, self.mesh.ny, len(self.species_list)))
+    @velocities.setter
+    def velocities(self, value):
+        _check_array("velocities", value, (self.mesh.nx, self.mesh.ny, len(self.species_list), 3))
 
-        self._velocities_parallel = value
+        # Converting to cartesian system
+        self._velocities_cartesian = np.zeros(value.shape)
+        self._velocities_cartesian[:, :, :, 2] = value[:, :, :, 2]
+        for k in range(value.shape[2]):
+            self._velocities_cartesian[:, :, k, :2] = self.mesh.to_cartesian(value[:, :, k, :2])
 
-    @property
-    def velocities_radial(self):
-        return self._velocities_radial
-
-    @velocities_radial.setter
-    def velocities_radial(self, value):
-        _check_array("velocities_radial", value, (self.mesh.nx, self.mesh.ny, len(self.species_list)))
-
-        self._velocities_radial = value
-
-    @property
-    def velocities_toroidal(self):
-        return self._velocities_toroidal
-
-    @velocities_toroidal.setter
-    def velocities_toroidal(self, value):
-        _check_array("velocities_toroidal", value, (self.mesh.nx, self.mesh.ny, len(self.species_list)))
-
-        self._velocities_toroidal = value
+        self._velocities = value
 
     @property
     def velocities_cartesian(self):
@@ -228,6 +212,12 @@ class SOLPSSimulation:
     @velocities_cartesian.setter
     def velocities_cartesian(self, value):
         _check_array("velocities_cartesian", value, (self.mesh.nx, self.mesh.ny, len(self.species_list), 3))
+
+        # Converting to poloidal system
+        self._velocities = np.zeros(value.shape)
+        self._velocities[:, :, :, 2] = value[:, :, :, 2]
+        for k in range(value.shape[2]):
+            self._velocities[:, :, k, :2] = self.mesh.to_poloidal(value[:, :, k, :2])
 
         self._velocities_cartesian = value
 
@@ -293,6 +283,11 @@ class SOLPSSimulation:
     def b_field(self, value):
         _check_array("b_field", value, (self.mesh.nx, self.mesh.ny, 3))
 
+        # Converting to cartesian system
+        self._b_field_vectors_cartesian = np.zeros(value.shape)
+        self._b_field_vectors_cartesian[:, :, 2] = value[:, :, 2]
+        self._b_field_vectors_cartesian[:, :, :2] = self.mesh.to_cartesian(value[:, :, :2])
+
         self._b_field_vectors = value
 
     @property
@@ -308,6 +303,11 @@ class SOLPSSimulation:
     @b_field_cartesian.setter
     def b_field_cartesian(self, value):
         _check_array("b_field_cartesian", value, (self.mesh.nx, self.mesh.ny, 3))
+
+        # Converting to poloidal system
+        self._b_field_vectors = np.zeros(value.shape)
+        self._b_field_vectors[:, :, 2] = value[:, :, 2]
+        self._b_field_vectors[:, :, :2] = self.mesh.to_poloidal(value[:, :, :2])
 
         self._b_field_vectors_cartesian = value
 
@@ -341,9 +341,7 @@ class SOLPSSimulation:
             'species_density': self._species_density,
             'radial_particle_flux': self._radial_particle_flux,
             'radial_area': self._radial_area,
-            'velocities_parallel': self._velocities_parallel,
-            'velocities_radial': self._velocities_radial,
-            'velocities_toroidal': self._velocities_toroidal,
+            'velocities': self._velocities,
             'velocities_cartesian': self._velocities_cartesian,
             'inside_mesh': self._inside_mesh,
             'total_rad': self._total_rad,
@@ -365,9 +363,7 @@ class SOLPSSimulation:
         self._species_density = state['species_density']
         self._radial_particle_flux = state['radial_particle_flux']
         self._radial_area = state['radial_area']
-        self._velocities_parallel = state['velocities_parallel']
-        self._velocities_radial = state['velocities_radial']
-        self._velocities_toroidal = state['velocities_toroidal']
+        self._velocities = state['velocities']
         self._velocities_cartesian = state['velocities_cartesian']
         self._inside_mesh = state['inside_mesh']
         self._total_rad = state['total_rad']
