@@ -242,7 +242,7 @@ class SOLPSSimulation:
     @property
     def b_field(self):
         """
-        Magnetic B field at each mesh cell in mesh cell coordinates (b_parallel, b_radial, b_toroidal).
+        Magnetic B field at each mesh cell in mesh cell coordinates (b_poloidal, b_radial, b_toroidal).
         """
         if self._b_field_vectors is None:
             raise RuntimeError("Magnetic field not available for this simulation.")

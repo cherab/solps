@@ -66,13 +66,13 @@ class SOLPSMesh:
 
         self.vessel = None
 
-        # Calculating parallel basis vector
-        self._parallel_basis_vector = np.zeros((self._nx, self._ny, 2))
+        # Calculating poloidal basis vector
+        self._poloidal_basis_vector = np.zeros((self._nx, self._ny, 2))
         vec_r = r[:, :, 1] - r[:, :, 0]
         vec_z = z[:, :, 1] - z[:, :, 0]
         vec_magn = np.sqrt(vec_r**2 + vec_z**2)
-        self._parallel_basis_vector[:, :, 0] = vec_r / vec_magn
-        self._parallel_basis_vector[:, :, 1] = vec_z / vec_magn
+        self._poloidal_basis_vector[:, :, 0] = vec_r / vec_magn
+        self._poloidal_basis_vector[:, :, 1] = vec_z / vec_magn
 
         # Calculating radial basis vector
         self._radial_basis_vector = np.zeros((self._nx, self._ny, 2))
@@ -83,14 +83,14 @@ class SOLPSMesh:
         self._radial_basis_vector[:, :, 1] = vec_z / vec_magn
 
         # For convertion from Cartesian to poloidal
-        self._inv_det = 1. / (self._parallel_basis_vector[:, :, 0] * self._radial_basis_vector[:, :, 1] -
-                              self._parallel_basis_vector[:, :, 1] * self._radial_basis_vector[:, :, 0])
+        self._inv_det = 1. / (self._poloidal_basis_vector[:, :, 0] * self._radial_basis_vector[:, :, 1] -
+                              self._poloidal_basis_vector[:, :, 1] * self._radial_basis_vector[:, :, 0])
 
         # Test for basis vector calculation
         # plt.quiver(self._cr[:, 0], self._cz[:, 0], self._radial_basis_vector[:, 0, 0], self._radial_basis_vector[:, 0, 1], color='k')
-        # plt.quiver(self._cr[:, 0], self._cz[:, 0], self._parallel_basis_vector[:, 0, 0], self._parallel_basis_vector[:, 0, 1], color='r')
+        # plt.quiver(self._cr[:, 0], self._cz[:, 0], self._poloidal_basis_vector[:, 0, 0], self._poloidal_basis_vector[:, 0, 1], color='r')
         # plt.quiver(self._cr[:, -1], self._cz[:, -1], self._radial_basis_vector[:, -1, 0], self._radial_basis_vector[:, -1, 1], color='k')
-        # plt.quiver(self._cr[:, -1], self._cz[:, -1], self._parallel_basis_vector[:, -1, 0], self._parallel_basis_vector[:, -1, 1], color='r')
+        # plt.quiver(self._cr[:, -1], self._cz[:, -1], self._poloidal_basis_vector[:, -1, 0], self._poloidal_basis_vector[:, -1, 1], color='r')
         # plt.gca().set_aspect('equal')
         # plt.show()
 
@@ -187,11 +187,11 @@ class SOLPSMesh:
         return self._triangles
 
     @property
-    def parallel_basis_vector(self):
+    def poloidal_basis_vector(self):
         """
-        Array of 2D parallel basis vectors for grid cells.
+        Array of 2D poloidal basis vectors for grid cells.
 
-        For each cell there is a parallel and radial basis vector.
+        For each cell there is a poloidal and radial basis vector.
 
         Any vector on the poloidal grid can be converted to cartesian with the following transformation.
         bx = (p_x  r_x) ( b_p )
@@ -199,14 +199,14 @@ class SOLPSMesh:
 
         :return: ndarray with shape (nx, ny, 2).
         """
-        return self._parallel_basis_vector
+        return self._poloidal_basis_vector
 
     @property
     def radial_basis_vector(self):
         """
         Array of 2D radial basis vectors for grid cells.
 
-        For each cell there is a parallel and radial basis vector.
+        For each cell there is a poloidal and radial basis vector.
 
         Any vector on the poloidal grid can be converted to cartesian with the following transformation.
         bx = (p_x  r_x) ( b_p )
@@ -248,13 +248,13 @@ class SOLPSMesh:
         """
         Converts the 2D vector defined on mesh from poloidal to cartesian coordinates.
         :param ndarray vec_pol: Array of 2D vector with with shape (nx, ny, 2).
-            [:, :, 0] - parallel component, [:, :, 1] - radial component
+            [:, :, 0] - poloidal component, [:, :, 1] - radial component
 
         :return: ndarray with shape (nx, ny, 2)
         """
         vec_cart = np.zeros((self._nx, self._ny, 2))
-        vec_cart[:, :, 0] = self._parallel_basis_vector[:, :, 0] * vec_pol[:, :, 0] + self._radial_basis_vector[:, :, 0] * vec_pol[:, :, 1]
-        vec_cart[:, :, 1] = self._parallel_basis_vector[:, :, 1] * vec_pol[:, :, 0] + self._radial_basis_vector[:, :, 1] * vec_pol[:, :, 1]
+        vec_cart[:, :, 0] = self._poloidal_basis_vector[:, :, 0] * vec_pol[:, :, 0] + self._radial_basis_vector[:, :, 0] * vec_pol[:, :, 1]
+        vec_cart[:, :, 1] = self._poloidal_basis_vector[:, :, 1] * vec_pol[:, :, 0] + self._radial_basis_vector[:, :, 1] * vec_pol[:, :, 1]
 
         return vec_cart
 
@@ -269,8 +269,8 @@ class SOLPSMesh:
         vec_pol = np.zeros((self._nx, self._ny, 2))
         vec_pol[:, :, 0] = self._inv_det * (self._radial_basis_vector[:, :, 1] * vec_cart[:, :, 0] -
                                             self._radial_basis_vector[:, :, 0] * vec_cart[:, :, 1])
-        vec_pol[:, :, 1] = self._inv_det * (self._parallel_basis_vector[:, :, 0] * vec_cart[:, :, 1] -
-                                            self._parallel_basis_vector[:, :, 1] * vec_cart[:, :, 0])
+        vec_pol[:, :, 1] = self._inv_det * (self._poloidal_basis_vector[:, :, 0] * vec_cart[:, :, 1] -
+                                            self._poloidal_basis_vector[:, :, 1] * vec_cart[:, :, 0])
 
         return vec_pol
 
