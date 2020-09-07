@@ -37,7 +37,7 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     :rtype: SOLPSSimulation
     """
 
-    from MDSplus import Connection as MDSConnection
+    from MDSplus import Connection as MDSConnection, mdsExceptions
 
     # Setup connection to server
     conn = MDSConnection(mds_server)
@@ -78,22 +78,28 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     sim.species_density = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.NA').data(), 0, 2)
 
     # Load the neutral atom density from Eirene if available
-    dab2 = conn.get('\SOLPS::TOP.SNAPSHOT.DAB2').data()
-    if isinstance(dab2, np.ndarray):
-        # Replace the species densities
-        neutral_densities = np.swapaxes(dab2, 0, 2)
+    try:
+        dab2 = conn.get('\SOLPS::TOP.SNAPSHOT.DAB2').data()
+        if isinstance(dab2, np.ndarray):
+            # Replace the species densities
+            neutral_densities = np.swapaxes(dab2, 0, 2)
 
-        neutral_i = 0  # counter for neutral atoms
-        for k, sp in enumerate(sim.species_list):
-            charge = sp[1]
-            if charge == 0:
-                sim.species_density[:, :, k] = neutral_densities[:, :, neutral_i]
-                neutral_i += 1
+            neutral_i = 0  # counter for neutral atoms
+            for k, sp in enumerate(sim.species_list):
+                charge = sp[1]
+                if charge == 0:
+                    sim.species_density[:, :, k] = neutral_densities[:, :, neutral_i]
+                    neutral_i += 1
+    except mdsExceptions.TreeNNF:
+        pass
 
     # Load the neutral atom temperature from Eirene if available
-    tab2 = conn.get('\SOLPS::TOP.SNAPSHOT.TAB2').data()
-    if isinstance(tab2, np.ndarray):
-        sim.neutral_temperature = np.swapaxes(tab2, 0, 2)
+    try:
+        tab2 = conn.get('\SOLPS::TOP.SNAPSHOT.TAB2').data()
+        if isinstance(tab2, np.ndarray):
+            sim.neutral_temperature = np.swapaxes(tab2, 0, 2)
+    except mdsExceptions.TreeNNF:
+        pass
 
     # TODO: Eirene data (TOP.SNAPSHOT.PFLA, TOP.SNAPSHOT.RFLA) should be used for neutral atoms.
     velocities = np.zeros((ni, nj, len(sim.species_list), 3))
@@ -129,14 +135,19 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     linerad = np.sum(linerad, axis=2)
     brmrad = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.RQBRM').data(), 0, 2)
     brmrad = np.sum(brmrad, axis=2)
-    neurad = conn.get('\SOLPS::TOP.SNAPSHOT.ENEUTRAD').data()
-    if neurad is not None:  # need to cope with fact that neurad may not be present!!!
-        if len(neurad.shape) == 3:
-            neurad = np.swapaxes(np.abs(np.sum(neurad, axis=0)), 0, 1)
+
+    # need to cope with fact that neurad may not be present!!!
+    try:
+        neurad = conn.get('\SOLPS::TOP.SNAPSHOT.ENEUTRAD').data()
+        if isinstance(neurad, np.ndarray):
+            if len(neurad.shape) == 3:
+                neurad = np.swapaxes(np.abs(np.sum(neurad, axis=0)), 0, 1)
+            else:
+                neurad = np.swapaxes(np.abs(neurad), 0, 1)
         else:
-            neurad = np.swapaxes(np.abs(neurad), 0, 1)
-    else:
-        neurad = np.zeros(brmrad.shape)
+            neurad = 0
+    except mdsExceptions.TreeNNF:
+        neurad = 0
 
     sim.total_radiation = (linerad + brmrad + neurad) / mesh.vol
 
