@@ -43,15 +43,29 @@ class SOLPSMesh:
     :param ndarray r: Array of cell vertex r coordinates, must be 3 dimensional. Example shape is (98 x 32 x 4).
     :param ndarray z: Array of cell vertex z coordinates, must be 3 dimensional. Example shape is (98 x 32 x 4).
     :param ndarray vol: Array of cell volumes. Example shape is (98 x 32).
+    :param ndarray neighbix: Array of poloidal indeces of neighbouring cells in order: left, bottom, right, top,
+                             must be 3 dimensional. Example shape is (98 x 32 x 4).
+                             In SOLPS notation: left/right - poloidal prev./next, bottom/top - radial prev./next.
+                             Cell indexing starts with 0 and -1 means no neighbour.
+    :param ndarray neighbix: Array of radial indeces of neighbouring cells in order: left, bottom, right, top,
+                             must be 3 dimensional. Example shape is (98 x 32 x 4).
     """
 
-    def __init__(self, r, z, vol):
+    # TODO Make neighbix and neighbix optional in the future, as they can be reconstructed with _tri_index_loopup
+
+    def __init__(self, r, z, vol, neighbix, neighbiy):
 
         if r.shape != z.shape:
             raise ValueError('Shape of r array: %s mismatch the shape of z array: %s.' % (r.shape, z.shape))
 
         if vol.shape != r.shape[:-1]:
             raise ValueError('Shape of vol array: %s mismatch the grid dimentions: %s.' % (vol.shape, r.shape[:-1]))
+
+        if neighbix.shape != r.shape:
+            raise ValueError('Shape of neighbix array must be %s, but it is  %s.' % (r.shape, neighbix.shape))
+
+        if neighbiy.shape != r.shape:
+            raise ValueError('Shape of neighbix array must be %s, but it is  %s.' % (r.shape, neighbiy.shape))
 
         self._cr = r.sum(2) / 4.
         self._cz = z.sum(2) / 4.
@@ -64,6 +78,9 @@ class SOLPSMesh:
 
         self._vol = vol
 
+        self._neighbix = neighbix.astype(np.int)
+        self._neighbiy = neighbiy.astype(np.int)
+
         self.vessel = None
 
         # Calculating poloidal basis vector
@@ -71,18 +88,25 @@ class SOLPSMesh:
         vec_r = r[:, :, 1] - r[:, :, 0]
         vec_z = z[:, :, 1] - z[:, :, 0]
         vec_magn = np.sqrt(vec_r**2 + vec_z**2)
-        self._poloidal_basis_vector[:, :, 0] = vec_r / vec_magn
-        self._poloidal_basis_vector[:, :, 1] = vec_z / vec_magn
+        self._poloidal_basis_vector[:, :, 0] = np.divide(vec_r, vec_magn, out=np.zeros((self._nx, self._ny)), where=(vec_magn > 0))
+        self._poloidal_basis_vector[:, :, 1] = np.divide(vec_z, vec_magn, out=np.zeros((self._nx, self._ny)), where=(vec_magn > 0))
+
+        # Calculating radial contact areas
+        self._radial_area = np.pi * (r[:, :, 1] + r[:, :, 0]) * vec_magn[:, :]
 
         # Calculating radial basis vector
         self._radial_basis_vector = np.zeros((self._nx, self._ny, 2))
         vec_r = r[:, :, 2] - r[:, :, 0]
         vec_z = z[:, :, 2] - z[:, :, 0]
         vec_magn = np.sqrt(vec_r**2 + vec_z**2)
-        self._radial_basis_vector[:, :, 0] = vec_r / vec_magn
-        self._radial_basis_vector[:, :, 1] = vec_z / vec_magn
+        self._radial_basis_vector[:, :, 0] = np.divide(vec_r, vec_magn, out=np.zeros((self._nx, self._ny)), where=(vec_magn > 0))
+        self._radial_basis_vector[:, :, 1] = np.divide(vec_z, vec_magn, out=np.zeros((self._nx, self._ny)), where=(vec_magn > 0))
+
+        # Calculating poloidal contact areas
+        self._poloidal_area = np.pi * (r[:, :, 2] + r[:, :, 0]) * vec_magn[:, :]
 
         # For convertion from Cartesian to poloidal
+        # TODO Make it work with trianle cells
         self._inv_det = 1. / (self._poloidal_basis_vector[:, :, 0] * self._radial_basis_vector[:, :, 1] -
                               self._poloidal_basis_vector[:, :, 1] * self._radial_basis_vector[:, :, 0])
 
@@ -160,6 +184,26 @@ class SOLPSMesh:
     def vol(self):
         """Volume/area of each grid cell."""
         return self._vol
+
+    @property
+    def neighbix(self):
+        """Poloidal indeces of neighbouring cells in order: left, bottom, right, top."""
+        return self._neighbix
+
+    @property
+    def neighbiy(self):
+        """Radial indeces of neighbouring cells in order: left, bottom, right, top."""
+        return self._neighbiy
+
+    @property
+    def radial_area(self):
+        """Radial contact area."""
+        return self._radial_area
+
+    @property
+    def poloidal_area(self):
+        """Poloidal contact area."""
+        return self._poloidal_area
 
     @property
     def vertex_coordinates(self):

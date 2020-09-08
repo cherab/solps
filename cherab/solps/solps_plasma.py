@@ -56,7 +56,7 @@ class SOLPSSimulation:
 
         if not len(species_list):
             raise ValueError('Argument "species_list" must contain at least one species.')
-        self._species_list = tuple(species_list)  # adding species is not allowed
+        self._species_list = tuple(species_list)  # adding additional species is not allowed
 
         self._electron_temperature = None
         self._electron_density = None
@@ -167,7 +167,7 @@ class SOLPSSimulation:
     def velocities(self, value):
         _check_array("velocities", value, (self.mesh.nx, self.mesh.ny, len(self.species_list), 3))
 
-        # Converting to cartesian system
+        # Converting to Cartesian coordinates
         self._velocities_cartesian = np.zeros(value.shape)
         self._velocities_cartesian[:, :, :, 2] = value[:, :, :, 2]
         for k in range(value.shape[2]):
@@ -183,7 +183,7 @@ class SOLPSSimulation:
     def velocities_cartesian(self, value):
         _check_array("velocities_cartesian", value, (self.mesh.nx, self.mesh.ny, len(self.species_list), 3))
 
-        # Converting to poloidal system
+        # Converting to poloidal coordinates
         self._velocities = np.zeros(value.shape)
         self._velocities[:, :, :, 2] = value[:, :, :, 2]
         for k in range(value.shape[2]):
@@ -588,3 +588,138 @@ def prefer_element(isotope):
         return isotope.element
 
     return isotope
+
+
+def b2_flux_to_velocity(mesh, density, poloidal_flux, radial_flux, parallel_velocity, b_field_cartesian):
+    """
+    Calculates velocities of neutral particles using B2 particle fluxes defined at cell faces.
+
+    :param SOLPSMesh mesh: SOLPS simulation mesh.
+    :param ndarray density: Density of atoms in m-3. Must be 3 dimensiona array of
+                            shape (mesh.nx, mesh.ny, num_atoms).
+    :param ndarray poloidal_flux: Poloidal flux of atoms in s-1. Must be a 3 dimensional array of
+                                  shape (mesh.nx, mesh.ny, num_atoms).
+    :param ndarray radial_flux: Radial flux of atoms in s-1. Must be a 3 dimensional array of
+                                shape (mesh.nx, mesh.ny, num_atoms).
+    :param ndarray parallel_velocity: Parallel velocity of atoms in m/s. Must be a 3 dimensional
+                                      array of shape (mesh.nx, mesh.ny, num_atoms).
+                                      Parallel velocity is a velocity projection on magnetic
+                                      field direction.
+    :param ndarray b_field_cartesian: Magnetic field in Cartesian (R, Z, phi) coordinates.
+                                      Must be a 3 dimensional array of shape (mesh.nx, mesh.ny, 3).
+
+    :return: Velocities of atoms in (R, Z, phi) coordinates as a 4-dimensional ndarray of
+             shape (mesh.nx, mesh.ny, num_atoms, 3)
+    """
+
+    nx = mesh.nx
+    ny = mesh.ny
+    ns = density.shape[2]
+
+    _check_array('density', poloidal_flux, (nx, ny, ns))
+    _check_array('poloidal_flux', poloidal_flux, (nx, ny, ns))
+    _check_array('radial_flux', radial_flux, (nx, ny, ns))
+    _check_array('parallel_velocity', parallel_velocity, (nx, ny, ns))
+    _check_array('b_field_cartesian', b_field_cartesian, (nx, ny, 3))
+
+    poloidal_area = mesh.poloidal_area[:, :, None]
+    radial_area = mesh.radial_area[:, :, None]
+    leftix = mesh.neighbix[:, :, 0]  # poloidal prev.
+    leftiy = mesh.neighbiy[:, :, 0]
+    bottomix = mesh.neighbix[:, :, 1]  # radial prev.
+    bottomiy = mesh.neighbiy[:, :, 1]
+    rightix = mesh.neighbix[:, :, 2]   # poloidal next.
+    rightiy = mesh.neighbiy[:, :, 2]
+    topix = mesh.neighbix[:, :, 3]  # radial next.
+    topiy = mesh.neighbiy[:, :, 3]
+
+    # Converting s-1 --> m-2 s-1
+    poloidal_flux = np.divide(poloidal_flux, poloidal_area, out=np.zeros_like(poloidal_flux), where=poloidal_area > 0)
+    radial_flux = np.divide(radial_flux, radial_area, out=np.zeros_like(radial_flux), where=radial_area > 0)
+
+    # Obtaining left velocity
+    dens_neighb = density[leftix, leftiy, :]  # density in the left neighbouring cell
+    has_neighbour = ((leftix > -1) * (leftiy > -1))[:, :, None]  # check if has left neighbour
+    neg_flux = (poloidal_flux < 0) * (density > 0)  # will use density in this cell if flux is negative
+    pos_flux = (poloidal_flux > 0) * (dens_neighb > 0) * has_neighbour  # will use density in neighbouring cell if flux is positive
+    velocity_left = np.divide(poloidal_flux, density, out=np.zeros((nx, ny, ns)), where=neg_flux)
+    velocity_left = np.divide(poloidal_flux, dens_neighb, out=velocity_left, where=pos_flux)
+    velocity_left = velocity_left[:, :, :, None] * mesh.poloidal_basis_vector[:, :, None, :]  # to vector in Cartesian
+
+    # Obtaining bottom velocity
+    dens_neighb = density[bottomix, bottomiy, :]
+    has_neighbour = ((bottomix > -1) * (bottomiy > -1))[:, :, None]
+    neg_flux = (radial_flux < 0) * (density > 0)
+    pos_flux = (poloidal_flux > 0) * (dens_neighb > 0) * has_neighbour
+    velocity_bottom = np.divide(radial_flux, density, out=np.zeros((nx, ny, ns)), where=neg_flux)
+    velocity_bottom = np.divide(radial_flux, dens_neighb, out=velocity_bottom, where=pos_flux)
+    velocity_bottom = velocity_bottom[:, :, :, None] * mesh.radial_basis_vector[:, :, None, :]  # to Cartesian
+
+    # Obtaining right and top velocities
+    velocity_right = velocity_left[rightix, rightiy, :, :]
+    velocity_right[(rightix < 0) + (rightiy < 0)] = 0
+
+    velocity_top = velocity_bottom[topix, topiy, :, :]
+    velocity_top[(topix < 0) + (topiy < 0)] = 0
+
+    vcart = np.zeros((nx, ny, ns, 3))  # velocities in Cartesian coordinates
+
+    # Projection of velocity on RZ-plane
+    vcart[:, :, :, :2] = 0.25 * (velocity_bottom + velocity_left + velocity_top + velocity_right)
+
+    # Obtaining toroidal velocity
+    b = b_field_cartesian[:, :, None, :]
+    bmagn = np.sqrt((b * b).sum(3))
+    vcart[:, :, :, 2] = (parallel_velocity * bmagn - vcart[:, :, :, 0] * b[:, :, :, 0] - vcart[:, :, :, 1] * b[:, :, :, 1]) / b[:, :, :, 2]
+
+    return vcart
+
+
+def eirene_flux_to_velocity(mesh, density, poloidal_flux, radial_flux, parallel_velocity, b_field_cartesian):
+    """
+    Calculates velocities of neutral particles using Eirene particle fluxes defined at cell centre.
+
+    :param SOLPSMesh mesh: SOLPS simulation mesh.
+    :param ndarray density: Density of atoms in m-3. Must be 3 dimensiona array of
+                            shape (mesh.nx, mesh.ny, num_atoms).
+    :param ndarray poloidal_flux: Poloidal flux of atoms in m-2 s-1. Must be a 3 dimensional array of
+                                  shape (mesh.nx, mesh.ny, num_atoms).
+    :param ndarray radial_flux: Radial flux of atoms in m-2 s-1. Must be a 3 dimensional array of
+                                shape (mesh.nx, mesh.ny, num_atoms).
+    :param ndarray parallel_velocity: Parallel velocity of atoms in m/s. Must be a 3 dimensional
+                                      array of shape (mesh.nx, mesh.ny, num_atoms).
+                                      Parallel velocity is a velocity projection on magnetic
+                                      field direction.
+    :param ndarray b_field_cartesian: Magnetic field in Cartesian (R, Z, phi) coordinates.
+                                      Must be a 3 dimensional array of shape (mesh.nx, mesh.ny, 3).
+
+    :return: Velocities of atoms in (R, Z, phi) coordinates as a 4-dimensional ndarray of
+             shape (mesh.nx, mesh.ny, num_atoms, 3)
+    """
+
+    nx = mesh.nx
+    ny = mesh.ny
+    ns = density.shape[2]
+
+    _check_array('density', poloidal_flux, (nx, ny, ns))
+    _check_array('poloidal_flux', poloidal_flux, (nx, ny, ns))
+    _check_array('radial_flux', radial_flux, (nx, ny, ns))
+    _check_array('parallel_velocity', parallel_velocity, (nx, ny, ns))
+    _check_array('b_field_cartesian', b_field_cartesian, (nx, ny, 3))
+
+    # Obtaining velocity
+    poloidal_velocity = np.divide(poloidal_flux, density, out=np.zeros((nx, ny, ns)), where=(density > 0))
+    radial_velocity = np.divide(radial_flux, density, out=np.zeros((nx, ny, ns)), where=(density > 0))
+
+    vcart = np.zeros((nx, ny, ns, 3))  # velocities in Cartesian coordinates
+
+    # Projection of velocity on RZ-plane
+    vcart[:, :, :, :2] = (poloidal_velocity[:, :, :, None] * mesh.poloidal_basis_vector[:, :, None, :] +
+                          radial_velocity[:, :, :, None] * mesh.radial_basis_vector[:, :, None, :])  # to vector in Cartesian
+
+    # Obtaining toroidal velocity
+    b = b_field_cartesian[:, :, None, :]
+    bmagn = np.sqrt((b * b).sum(3))
+    vcart[:, :, :, 2] = (parallel_velocity * bmagn - (vcart[:, :, :, 0] * b[:, :, :, 0] + vcart[:, :, :, 1] * b[:, :, :, 1])) / b[:, :, :, 2]
+
+    return vcart

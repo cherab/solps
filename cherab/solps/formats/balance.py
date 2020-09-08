@@ -41,16 +41,7 @@ def load_solps_from_balance(balance_filename):
     fhandle = netcdf.netcdf_file(balance_filename, 'r')
 
     # Load SOLPS mesh geometry
-    cr_x = fhandle.variables['crx'].data.copy()
-    cr_z = fhandle.variables['cry'].data.copy()
-    vol = fhandle.variables['vol'].data.copy()
-
-    # Re-arrange the array dimensions in the way CHERAB expects...
-    cr_x = np.moveaxis(cr_x, 0, -1)
-    cr_z = np.moveaxis(cr_z, 0, -1)
-
-    # Create the SOLPS mesh
-    mesh = SOLPSMesh(cr_x, cr_z, vol)
+    mesh = load_mesh_from_netcdf(fhandle)
 
     # Load each plasma species in simulation
 
@@ -58,7 +49,7 @@ def load_solps_from_balance(balance_filename):
     n_species = len(fhandle.variables['am'].data)
     for i in range(n_species):
 
-        # Extract the nuclear charge    
+        # Extract the nuclear charge
         if fhandle.variables['species'].data[i, 1] == b'D':
             zn = 1
         if fhandle.variables['species'].data[i, 1] == b'C':
@@ -75,7 +66,7 @@ def load_solps_from_balance(balance_filename):
         isotope = lookup_isotope(zn, number=am)
         species = prefer_element(isotope)  # Prefer Element over Isotope if the mass number is the same
 
-        # If we only need to populate species_list, there is probably a faster way to do this...        
+        # If we only need to populate species_list, there is probably a faster way to do this...
         species_list.append((species, charge))
 
     sim = SOLPSSimulation(mesh, species_list)
@@ -114,24 +105,24 @@ def load_solps_from_balance(balance_filename):
     # Calculate the total radiated power
     if eirene_run:
         # Total radiated power from B2, not including neutrals
-        b2_ploss = np.sum(fhandle.variables['b2stel_she_bal'].data, axis=0) / vol
+        b2_ploss = np.sum(fhandle.variables['b2stel_she_bal'].data, axis=0) / mesh.vol
 
         # Electron energy loss due to interactions with neutrals
         if 'eirene_mc_eael_she_bal' in fhandle.variables.keys():
-            eirene_ecoolrate = np.sum(fhandle.variables['eirene_mc_eael_she_bal'].data, axis=0) / vol
+            eirene_ecoolrate = np.sum(fhandle.variables['eirene_mc_eael_she_bal'].data, axis=0) / mesh.vol
 
         # Ionisation rate from EIRENE, needed to calculate the energy loss to overcome the ionisation potential of atoms
         if 'eirene_mc_papl_sna_bal' in fhandle.variables.keys():
-            eirene_potential_loss = rydberg_energy * np.sum(fhandle.variables['eirene_mc_papl_sna_bal'].data, axis=(0))[1, :, :] * el_charge / vol
+            eirene_potential_loss = rydberg_energy * np.sum(fhandle.variables['eirene_mc_papl_sna_bal'].data, axis=(0))[1, :, :] * el_charge / mesh.vol
 
         # This will be negative (energy sink); multiply by -1
         sim.total_radiation = -1.0 * (b2_ploss + (eirene_ecoolrate - eirene_potential_loss))
 
     else:
         # Total radiated power from B2, not including neutrals
-        b2_ploss = np.sum(fhandle.variables['b2stel_she_bal'].data, axis=0) / vol
+        b2_ploss = np.sum(fhandle.variables['b2stel_she_bal'].data, axis=0) / mesh.vol
 
-        potential_loss = np.sum(fhandle.variables['b2stel_sna_ion_bal'].data, axis=0) / vol
+        potential_loss = np.sum(fhandle.variables['b2stel_sna_ion_bal'].data, axis=0) / mesh.vol
 
         # Save total radiated power to the simulation object
         sim.total_radiation = rydberg_energy * el_charge * potential_loss - b2_ploss
@@ -139,3 +130,41 @@ def load_solps_from_balance(balance_filename):
     fhandle.close()
 
     return sim
+
+
+def load_mesh_from_netcdf(fhandle):
+
+    # Load SOLPS mesh geometry
+    r = fhandle.variables['crx'].data.copy()
+    z = fhandle.variables['cry'].data.copy()
+    vol = fhandle.variables['vol'].data.copy()
+
+    # Re-arrange the array dimensions in the way CHERAB expects...
+    r = np.moveaxis(r, 0, -1)
+    z = np.moveaxis(z, 0, -1)
+
+    # Loading neighbouring cell indices
+    neighbix = np.zeros(r.shape, dtype=np.int)
+    neighbiy = np.zeros(r.shape, dtype=np.int)
+
+    neighbix[:, :, 0] = fhandle.variables['leftix'].data.copy().astype(np.int)  # poloidal prev.
+    neighbix[:, :, 1] = fhandle.variables['bottomix'].data.copy().astype(np.int)  # radial prev.
+    neighbix[:, :, 2] = fhandle.variables['rightix'].data.copy().astype(np.int)  # poloidal next
+    neighbix[:, :, 3] = fhandle.variables['topix'].data.copy().astype(np.int)  # radial next
+
+    neighbiy[:, :, 0] = fhandle.variables['leftiy'].data.copy().astype(np.int)
+    neighbiy[:, :, 1] = fhandle.variables['bottomiy'].data.copy().astype(np.int)
+    neighbiy[:, :, 2] = fhandle.variables['rightiy'].data.copy().astype(np.int)
+    neighbiy[:, :, 3] = fhandle.variables['topiy'].data.copy().astype(np.int)
+
+    # In SOLPS cell indexing starts with -1 (guarding cell), but in SOLPSMesh -1 means no neighbour.
+    if neighbix.min() < -1 or neighbiy.min() < -1:
+        neighbix += 1
+        neighbiy += 1
+    neighbix[neighbix == r.shape[0]] = -1
+    neighbiy[neighbiy == r.shape[1]] = -1
+
+    # Create the SOLPS mesh
+    mesh = SOLPSMesh(r, z, vol, neighbix, neighbiy)
+
+    return mesh
