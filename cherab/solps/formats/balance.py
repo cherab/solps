@@ -81,8 +81,7 @@ def load_solps_from_balance(balance_filename):
     sim.ion_temperature = fhandle.variables['ti'].data.copy() / el_charge
 
     tmp = fhandle.variables['na'].data.copy()
-    tmp = np.moveaxis(tmp, 0, -1)
-    sim.species_density = tmp
+    species_density = np.moveaxis(tmp, 0, -1)
 
     # Load the neutrals data
     try:
@@ -94,13 +93,15 @@ def load_solps_from_balance(balance_filename):
     # the values calculated by EIRENE - do the same for other neutrals?
     if 'dab2' in fhandle.variables.keys():
         if D0_indx is not None:
-            b2_len = np.shape(sim.species_density[:, :, D0_indx])[-1]
+            b2_len = np.shape(species_density[:, :, D0_indx])[-1]
             eirene_len = np.shape(fhandle.variables['dab2'].data)[-1]
-            sim.species_density[:, :, D0_indx] = fhandle.variables['dab2'].data[0, :, 0:b2_len - eirene_len]
+            species_density[:, :, D0_indx] = fhandle.variables['dab2'].data[0, :, 0:b2_len - eirene_len]
 
         eirene_run = True
     else:
         eirene_run = False
+
+    sim.species_density = species_density
 
     # Calculate the total radiated power
     if eirene_run:

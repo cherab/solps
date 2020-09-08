@@ -155,8 +155,9 @@ def load_solps_from_raw_output(simulation_path, debug=False):
 
         # Obtaining total radiation
         eradt_raw_data = eirene.eradt.sum(2)
-        sim.total_radiation = np.zeros((ni, nj))
-        sim.total_radiation[1:-1, 1:-1] = eradt_raw_data
+        total_radiation = np.zeros((ni, nj))
+        total_radiation[1:-1, 1:-1] = eradt_raw_data
+        sim.total_radiation = total_radiation
 
         sim.eirene_simulation = eirene
 
