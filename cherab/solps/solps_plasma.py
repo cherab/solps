@@ -38,7 +38,20 @@ from .solps_3d_functions import SOLPSFunction3D, SOLPSVectorFunction3D
 from .mesh_geometry import SOLPSMesh
 
 
-# TODO: this interface is half broken - some routines expect internal data as arrays, others as function 3d
+# TODO: This interface is half broken - some routines expect internal data as arrays, others as function 3d.
+#
+#       In the future SOLPSSimulation should keep the data arrays in self._data dict, e.g. self._data["electron_temperature"], etc.
+#       Method self.set_electon_temperature(value) should set self._data["electron_temperature"] to value and
+#       initialise self._electron_temperature as a Discrete2DMesh (or AxisymmetricMapper, or SOLPSFunction3D), etc.
+#       Method self.get_electon_temperature() should return np.copy(self._data["electron_temperature"]), while
+#       self.electron_temperature should return a Discrete2DMesh (or AxisymmetricMapper, or SOLPSFunction3D) instance, etc.
+#
+#       As an option: self.electron_temperature returns a Discrete2DMesh instance, self.electron_temperature_3d returns
+#       AxisymmetricMapper or SOLPSFunction3D (?).
+#
+#       Also, there is some confusion in coordinates system names. We have curvilinear poloidal coordinates (poloidal, radial, toroidal),
+#       plane toroidal coordinates (R, Z, toroidal) and Cartesian coordinates (x, y, z). For now toroidal coordinates refered as Cartesian.
+
 class SOLPSSimulation:
 
     def __init__(self, mesh, species_list):
@@ -96,8 +109,11 @@ class SOLPSSimulation:
         """
         return self._electron_temperature
 
-    @electron_temperature.setter
-    def electron_temperature(self, value):
+    def get_electron_temperature(self):
+
+        return self._electron_temperature
+
+    def set_electron_temperature(self, value):
         _check_array("electron_temperature", value, (self.mesh.nx, self.mesh.ny))
 
         self._electron_temperature = value
@@ -110,8 +126,11 @@ class SOLPSSimulation:
         """
         return self._ion_temperature
 
-    @ion_temperature.setter
-    def ion_temperature(self, value):
+    def get_ion_temperature(self):
+
+        return self._ion_temperature
+
+    def set_ion_temperature(self, value):
         _check_array("ion_temperature", value, (self.mesh.nx, self.mesh.ny))
 
         self._ion_temperature = value
@@ -124,8 +143,11 @@ class SOLPSSimulation:
         """
         return self._neutral_temperature
 
-    @neutral_temperature.setter
-    def neutral_temperature(self, value):
+    def get_neutral_temperature(self):
+
+        return self._neutral_temperature
+
+    def set_neutral_temperature(self, value):
         num_neutrals = len([sp for sp in self.species_list if sp[1] == 0])
         _check_array("neutral_temperature", value, (self.mesh.nx, self.mesh.ny, num_neutrals))
 
@@ -139,8 +161,11 @@ class SOLPSSimulation:
         """
         return self._electron_density
 
-    @electron_density.setter
-    def electron_density(self, value):
+    def get_electron_density(self):
+
+        return self._electron_density
+
+    def set_electron_density(self, value):
         _check_array("electron_density", value, (self.mesh.nx, self.mesh.ny))
 
         self._electron_density = value
@@ -153,42 +178,62 @@ class SOLPSSimulation:
         """
         return self._species_density
 
-    @species_density.setter
-    def species_density(self, value):
+    def get_species_density(self):
+
+        return self._species_density
+
+    def set_species_density(self, value):
         _check_array("species_density", value, (self.mesh.nx, self.mesh.ny, len(self.species_list)))
 
         self._species_density = value
 
     @property
     def velocities(self):
-        return self._velocities_vectors
+        """
+        Velocities in poloidal coordinates (v_poloidal, v_radial, v_toroidal) for each species densities at each mesh cell.
+        :return:
+        """
+        return self._velocities
 
-    @velocities.setter
-    def velocities(self, value):
+    def get_velocities(self):
+
+        return self._velocities
+
+    def set_velocities(self, value):
         _check_array("velocities", value, (self.mesh.nx, self.mesh.ny, len(self.species_list), 3))
 
         # Converting to Cartesian coordinates
-        self._velocities_cartesian = np.zeros(value.shape)
-        self._velocities_cartesian[:, :, :, 2] = value[:, :, :, 2]
+        velocities_cartesian = np.zeros(value.shape)
+        velocities_cartesian[:, :, :, 2] = value[:, :, :, 2]
         for k in range(value.shape[2]):
-            self._velocities_cartesian[:, :, k, :2] = self.mesh.to_cartesian(value[:, :, k, :2])
+            velocities_cartesian[:, :, k, :2] = self.mesh.to_cartesian(value[:, :, k, :2])
 
+        self._velocities_cartesian = velocities_cartesian
         self._velocities = value
 
     @property
     def velocities_cartesian(self):
+        """
+        Velocities in Cartesian (v_r, v_z, v_toroidal) coordinates for each species densities at each mesh cell.
+        :return:
+        """
+        # TODO: If converted to SOLPSVectorFunction3D, should porbably return at (vx, vy, vz) at (x, y, z). (?)
         return self._velocities_cartesian
 
-    @velocities_cartesian.setter
-    def velocities_cartesian(self, value):
+    def get_velocities_cartesian(self):
+
+        return self._velocities_cartesian
+
+    def set_velocities_cartesian(self, value):
         _check_array("velocities_cartesian", value, (self.mesh.nx, self.mesh.ny, len(self.species_list), 3))
 
         # Converting to poloidal coordinates
-        self._velocities = np.zeros(value.shape)
-        self._velocities[:, :, :, 2] = value[:, :, :, 2]
+        velocities = np.zeros(value.shape)
+        velocities[:, :, :, 2] = value[:, :, :, 2]
         for k in range(value.shape[2]):
-            self._velocities[:, :, k, :2] = self.mesh.to_poloidal(value[:, :, k, :2])
+            velocities[:, :, k, :2] = self.mesh.to_poloidal(value[:, :, k, :2])
 
+        self._velocities = value
         self._velocities_cartesian = value
 
     @property
@@ -215,8 +260,11 @@ class SOLPSSimulation:
         else:
             return self._total_rad
 
-    @total_radiation.setter
-    def total_radiation(self, value):
+    def get_total_radiation(self):
+
+        return self._total_rad
+
+    def set_total_radiation(self, value):
         _check_array("total_radiation", value, (self.mesh.nx, self.mesh.ny))
 
         self._total_rad = value
@@ -249,36 +297,45 @@ class SOLPSSimulation:
         else:
             return self._b_field_vectors
 
-    @b_field.setter
-    def b_field(self, value):
+    def get_b_field(self):
+
+        return self._b_field_vectors
+
+    def set_b_field(self, value):
         _check_array("b_field", value, (self.mesh.nx, self.mesh.ny, 3))
 
         # Converting to cartesian system
-        self._b_field_vectors_cartesian = np.zeros(value.shape)
-        self._b_field_vectors_cartesian[:, :, 2] = value[:, :, 2]
-        self._b_field_vectors_cartesian[:, :, :2] = self.mesh.to_cartesian(value[:, :, :2])
+        b_field_vectors_cartesian = np.zeros(value.shape)
+        b_field_vectors_cartesian[:, :, 2] = value[:, :, 2]
+        b_field_vectors_cartesian[:, :, :2] = self.mesh.to_cartesian(value[:, :, :2])
 
+        self._b_field_vectors_cartesian = b_field_vectors_cartesian
         self._b_field_vectors = value
 
     @property
     def b_field_cartesian(self):
         """
-        Magnetic B field at each mesh cell in cartesian coordinates (Bx, By, Bz).
+        Magnetic B field at each mesh cell in Cartesian coordinates (B_r, B_z, B_toroidal).
         """
+        # TODO: If converted to SOLPSVectorFunction3D, should porbably return at (Bx, By, Bz) at (x, y, z). (?)
         if self._b_field_vectors_cartesian is None:
             raise RuntimeError("Magnetic field not available for this simulation.")
         else:
             return self._b_field_vectors_cartesian
 
-    @b_field_cartesian.setter
-    def b_field_cartesian(self, value):
+    def get_b_field_cartesian(self):
+
+        return self._b_field_vectors_cartesian
+
+    def set_b_field_cartesian(self, value):
         _check_array("b_field_cartesian", value, (self.mesh.nx, self.mesh.ny, 3))
 
         # Converting to poloidal system
-        self._b_field_vectors = np.zeros(value.shape)
-        self._b_field_vectors[:, :, 2] = value[:, :, 2]
-        self._b_field_vectors[:, :, :2] = self.mesh.to_poloidal(value[:, :, :2])
+        b_field_vectors = np.zeros(value.shape)
+        b_field_vectors[:, :, 2] = value[:, :, 2]
+        b_field_vectors[:, :, :2] = self.mesh.to_poloidal(value[:, :, :2])
 
+        self._b_field_vectors = b_field_vectors
         self._b_field_vectors_cartesian = value
 
     @property
@@ -502,27 +559,28 @@ class SOLPSSimulation:
         tri_to_grid = self.mesh.triangle_to_grid_map
 
         try:
-            plasma.b_field = SOLPSVectorFunction3D(tri_index_lookup, tri_to_grid, self.b_field_cartesian)
+            plasma.b_field = SOLPSVectorFunction3D(tri_index_lookup, tri_to_grid, self.get_b_field_cartesian())
+            # self.get_.. always returns data even if self.b_field_cartesian will return function in the future
         except RuntimeError:
             print('Warning! No magnetic field data available for this simulation.')
 
         # Create electron species
-        triangle_data = _map_data_onto_triangles(self.electron_temperature)
+        triangle_data = _map_data_onto_triangles(self.get_electron_temperature())
         electron_te_interp = Discrete2DMesh(mesh.vertex_coordinates, mesh.triangles, triangle_data, limit=False)
         electron_temp = AxisymmetricMapper(electron_te_interp)
-        triangle_data = _map_data_onto_triangles(self.electron_density)
+        triangle_data = _map_data_onto_triangles(self.get_electron_density())
         electron_dens = AxisymmetricMapper(Discrete2DMesh.instance(electron_te_interp, triangle_data))
         electron_velocity = lambda x, y, z: Vector3D(0, 0, 0)
         plasma.electron_distribution = Maxwellian(electron_dens, electron_temp, electron_velocity, electron_mass)
 
         # Ion temperature
-        triangle_data = _map_data_onto_triangles(self.ion_temperature)
+        triangle_data = _map_data_onto_triangles(self.get_ion_temperature())
         ion_temp = AxisymmetricMapper(Discrete2DMesh.instance(electron_te_interp, triangle_data))
 
-        if self.velocities_cartesian is None:
+        if self.get_velocities_cartesian() is None:
             print('Warning! No velocity field data available for this simulation.')
 
-        if self.neutral_temperature is None:
+        if self.get_neutral_temperature ()is None:
             print('Warning! No neutral atom temperature data available for this simulation.')
 
         neutral_i = 0  # neutrals count
@@ -531,22 +589,22 @@ class SOLPSSimulation:
             species_type = sp[0]
             charge = sp[1]
 
-            triangle_data = _map_data_onto_triangles(self.species_density[:, :, k])
+            triangle_data = _map_data_onto_triangles(self.get_species_density()[:, :, k])
             dens = AxisymmetricMapper(Discrete2DMesh.instance(electron_te_interp, triangle_data))
 
             # dens = SOLPSFunction3D(tri_index_lookup, tri_to_grid, self.species_density[:, :, k])
 
             # Create the velocity vector lookup function
-            if self.velocities_cartesian is not None:
-                velocity = SOLPSVectorFunction3D(tri_index_lookup, tri_to_grid, self.velocities_cartesian[:, :, k, :])
+            if self.get_velocities_cartesian() is not None:
+                velocity = SOLPSVectorFunction3D(tri_index_lookup, tri_to_grid, self.get_velocities_cartesian()[:, :, k, :])
             else:
                 velocity = lambda x, y, z: Vector3D(0, 0, 0)
 
-            if charge or self.neutral_temperature is None:  # ions or neutral atoms (neutral temperature is not available)
+            if charge or self.get_neutral_temperature() is None:  # ions or neutral atoms (neutral temperature is not available)
                 distribution = Maxwellian(dens, ion_temp, velocity, species_type.atomic_weight * atomic_mass)
 
             else:  # neutral atoms with neutral temperature
-                triangle_data = _map_data_onto_triangles(self.neutral_temperature[:, :, neutral_i])
+                triangle_data = _map_data_onto_triangles(self.get_neutral_temperature()[:, :, neutral_i])
                 neutral_temp = AxisymmetricMapper(Discrete2DMesh.instance(electron_te_interp, triangle_data))
                 distribution = Maxwellian(dens, neutral_temp, velocity, species_type.atomic_weight * atomic_mass)
                 neutral_i += 1

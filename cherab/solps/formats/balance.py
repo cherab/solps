@@ -74,11 +74,11 @@ def load_solps_from_balance(balance_filename):
     # TODO: add code to load SOLPS velocities and magnetic field from files
 
     # Load electron species
-    sim.electron_temperature = fhandle.variables['te'].data.copy() / el_charge
-    sim.electron_density = fhandle.variables['ne'].data.copy()
+    sim.set_electron_temperature(fhandle.variables['te'].data.copy() / el_charge)
+    sim.set_electron_density(fhandle.variables['ne'].data.copy())
 
     # Load ion temperature
-    sim.ion_temperature = fhandle.variables['ti'].data.copy() / el_charge
+    sim.set_ion_temperature(fhandle.variables['ti'].data.copy() / el_charge)
 
     tmp = fhandle.variables['na'].data.copy()
     species_density = np.moveaxis(tmp, 0, -1)
@@ -101,7 +101,7 @@ def load_solps_from_balance(balance_filename):
     else:
         eirene_run = False
 
-    sim.species_density = species_density
+    sim.set_species_density(species_density)
 
     # Calculate the total radiated power
     if eirene_run:
@@ -117,7 +117,7 @@ def load_solps_from_balance(balance_filename):
             eirene_potential_loss = rydberg_energy * np.sum(fhandle.variables['eirene_mc_papl_sna_bal'].data, axis=(0))[1, :, :] * el_charge / mesh.vol
 
         # This will be negative (energy sink); multiply by -1
-        sim.total_radiation = -1.0 * (b2_ploss + (eirene_ecoolrate - eirene_potential_loss))
+        sim.set_total_radiation(-1.0 * (b2_ploss + (eirene_ecoolrate - eirene_potential_loss)))
 
     else:
         # Total radiated power from B2, not including neutrals
@@ -126,7 +126,7 @@ def load_solps_from_balance(balance_filename):
         potential_loss = np.sum(fhandle.variables['b2stel_sna_ion_bal'].data, axis=0) / mesh.vol
 
         # Save total radiated power to the simulation object
-        sim.total_radiation = rydberg_energy * el_charge * potential_loss - b2_ploss
+        sim.set_total_radiation(rydberg_energy * el_charge * potential_loss - b2_ploss)
 
     fhandle.close()
 

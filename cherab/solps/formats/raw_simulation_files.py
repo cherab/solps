@@ -93,15 +93,15 @@ def load_solps_from_raw_output(simulation_path, debug=False):
     sim = SOLPSSimulation(mesh, species_list)
 
     # Load magnetic field
-    sim.b_field = geom_data_dict['bb'][:, :, :3]
+    sim.set_b_field(geom_data_dict['bb'][:, :, :3])
     # sim.b_field_cartesian is created authomatically
 
     # Load electron species
-    sim.electron_temperature = mesh_data_dict['te'] / elementary_charge
-    sim.electron_density = mesh_data_dict['ne']
+    sim.set_electron_temperature(mesh_data_dict['te'] / elementary_charge)
+    sim.set_electron_density(mesh_data_dict['ne'])
 
     # Load ion temperature
-    sim.ion_temperature = mesh_data_dict['ti'] / elementary_charge
+    sim.set_ion_temperature(mesh_data_dict['ti'] / elementary_charge)
 
     # Load species density
     species_density = mesh_data_dict['na']
@@ -151,18 +151,18 @@ def load_solps_from_raw_output(simulation_path, debug=False):
             ta[1:-1, i, :] = eirene.ta[:, i, :]
         for i, j in ((0, 0), (0, -1), (-1, 0), (-1, -1)):
             ta[i, j, :] = eirene.ta[i, j, :]
-        sim.neutral_temperature = ta / elementary_charge
+        sim.set_neutral_temperature(ta / elementary_charge)
 
         # Obtaining total radiation
         eradt_raw_data = eirene.eradt.sum(2)
         total_radiation = np.zeros((ni, nj))
         total_radiation[1:-1, 1:-1] = eradt_raw_data
-        sim.total_radiation = total_radiation
+        sim.set_total_radiation(total_radiation)
 
         sim.eirene_simulation = eirene
 
-    sim.species_density = species_density
-    sim.velocities_cartesian = velocities_cartesian  # this also updates sim.velocities
+    sim.set_species_density(species_density)
+    sim.set_velocities_cartesian(velocities_cartesian)  # this also updates sim.velocities
 
     return sim
 

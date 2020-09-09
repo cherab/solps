@@ -27,7 +27,6 @@ from cherab.solps.solps_plasma import SOLPSSimulation, prefer_element, b2_flux_t
 from matplotlib import pyplot as plt
 
 
-# TODO: violates interface of SOLPSSimulation.... puts numpy arrays in the object where they should be function2D
 def load_solps_from_mdsplus(mds_server, ref_number):
     """
     Load a SOLPS simulation from a MDSplus server.
@@ -67,15 +66,15 @@ def load_solps_from_mdsplus(mds_server, ref_number):
 
     ##########################
     # Magnetic field vectors #
-    sim.b_field = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.B').data(), 0, 2)[:, :, :3]
+    sim.set_b_field(np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.B').data(), 0, 2)[:, :, :3])
     # sim.b_field_cartesian is created authomatically
 
     # Load electron temperature and density
-    sim.electron_temperature = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.TE').data(), 0, 1)  # (32, 98) => (98, 32)
-    sim.electron_density = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.NE').data(), 0, 1)  # (32, 98) => (98, 32)
+    sim.set_electron_temperature(np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.TE').data(), 0, 1))  # (32, 98) => (98, 32)
+    sim.set_electron_density(np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.NE').data(), 0, 1))  # (32, 98) => (98, 32)
 
     # Load ion temperature
-    sim.ion_temperature = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.TI').data(), 0, 1)
+    sim.set_ion_temperature(np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.TI').data(), 0, 1))
 
     # Load species density
     species_density = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.NA').data(), 0, 2)
@@ -125,12 +124,12 @@ def load_solps_from_mdsplus(mds_server, ref_number):
 
         # Obtaining neutral temperatures
         try:
-            sim.neutral_temperature = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.TAB2').data(), 0, 2)
+            sim.set_neutral_temperature(np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.TAB2').data(), 0, 2))
         except (mdsExceptions.TreeNNF, np.AxisError):
             pass
 
-    sim.species_density = species_density
-    sim.velocities_cartesian = velocities_cartesian  # this also updates sim.velocities
+    sim.set_species_density(species_density)
+    sim.set_velocities_cartesian(velocities_cartesian)  # this also updates sim.velocities
 
     ###############################
     # Load extra data from server #
@@ -159,7 +158,7 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     except (mdsExceptions.TreeNNF, np.AxisError):
         neurad = 0
 
-    sim.total_radiation = (linerad + brmrad + neurad) / mesh.vol
+    sim.set_total_radiation((linerad + brmrad + neurad) / mesh.vol)
 
     return sim
 
