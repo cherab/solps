@@ -284,7 +284,9 @@ class SOLPSMesh:
         state = {
             'r': self._r,
             'z': self._z,
-            'vol': self._vol
+            'vol': self._vol,
+            'neighbix': self._neighbix,
+            'neighbiy': self._neighbiy
         }
         return state
 

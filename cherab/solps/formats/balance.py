@@ -23,7 +23,7 @@ from scipy import constants
 from raysect.core.math.function.float import Discrete2DMesh
 
 from cherab.core.math.mappers import AxisymmetricMapper
-from cherab.core.atomic.elements import lookup_isotope, deuterium
+from cherab.core.atomic.elements import lookup_isotope
 
 from cherab.solps.mesh_geometry import SOLPSMesh
 from cherab.solps.solps_plasma import SOLPSSimulation, prefer_element
@@ -67,7 +67,7 @@ def load_solps_from_balance(balance_filename):
         species = prefer_element(isotope)  # Prefer Element over Isotope if the mass number is the same
 
         # If we only need to populate species_list, there is probably a faster way to do this...
-        species_list.append((species, charge))
+        species_list.append((species.name, charge))
 
     sim = SOLPSSimulation(mesh, species_list)
 
@@ -85,7 +85,7 @@ def load_solps_from_balance(balance_filename):
 
     # Load the neutrals data
     try:
-        D0_indx = sim.species_list.index((deuterium, 0))
+        D0_indx = sim.species_list.index(("deuterium", 0))
     except ValueError:
         D0_indx = None
 

@@ -56,7 +56,7 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     for i in range(ns):
         isotope = lookup_isotope(zn[i], number=am[i])
         species = prefer_element(isotope)  # Prefer Element over Isotope if the mass number is the same
-        species_list.append((species, charge[i]))
+        species_list.append((species.name, charge[i]))
         if charge[i] == 0:
             neutral_indx.append(i)
 

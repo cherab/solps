@@ -31,6 +31,7 @@ from raysect.optical import Spectrum
 # CHERAB core imports
 from cherab.core import Plasma, Species, Maxwellian
 from cherab.core.math.mappers import AxisymmetricMapper
+from cherab.core.atomic.elements import lookup_isotope, lookup_element
 
 # This SOLPS package imports
 from cherab.solps.eirene import Eirene
@@ -96,7 +97,7 @@ class SOLPSSimulation:
     @property
     def species_list(self):
         """
-        Tuple of species elements in the form (Element/Isotope, charge).
+        Tuple of species elements in the form (species name, charge).
         :return:
         """
         return self._species_list
@@ -359,7 +360,7 @@ class SOLPSSimulation:
 
     def __getstate__(self):
         state = {
-            'mesh': self.mesh.__getstate__(),
+            'mesh': self._mesh.__getstate__(),
             'electron_temperature': self._electron_temperature,
             'ion_temperature': self._ion_temperature,
             'neutral_temperature': self._neutral_temperature,
@@ -379,7 +380,7 @@ class SOLPSSimulation:
         return state
 
     def __setstate__(self, state):
-        self.mesh = SOLPSMesh(**state['mesh'])
+        self._mesh = SOLPSMesh(**state['mesh'])
         self._electron_temperature = state['electron_temperature']
         self._ion_temperature = state['ion_temperature']
         self._neutral_temperature = state['neutral_temperature']
@@ -580,13 +581,17 @@ class SOLPSSimulation:
         if self.get_velocities_cartesian() is None:
             print('Warning! No velocity field data available for this simulation.')
 
-        if self.get_neutral_temperature ()is None:
+        if self.get_neutral_temperature() is None:
             print('Warning! No neutral atom temperature data available for this simulation.')
 
         neutral_i = 0  # neutrals count
         for k, sp in enumerate(self.species_list):
 
-            species_type = sp[0]
+            try:
+                species_type = lookup_element(sp[0])
+            except ValueError:
+                species_type = lookup_isotope(sp[0])
+
             charge = sp[1]
 
             triangle_data = _map_data_onto_triangles(self.get_species_density()[:, :, k])

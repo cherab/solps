@@ -86,7 +86,7 @@ def load_solps_from_raw_output(simulation_path, debug=False):
         charge = int(sim_info_dict['zamax'][i])  # Ionisation/charge
         isotope = lookup_isotope(zn, number=am)
         species = prefer_element(isotope)  # Prefer Element over Isotope if the mass number is the same
-        species_list.append((species, charge))
+        species_list.append((species.name, charge))
         if charge == 0:  # updating neutral index
             neutral_indx.append(i)
 

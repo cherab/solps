@@ -26,7 +26,7 @@ def load_solps_from_pickle(filename):
 
     file_handle = open(filename, 'rb')
     state = pickle.load(file_handle)
-    mesh = SOLPSMesh(state['mesh']['cr_r'], state['mesh']['cr_z'], state['mesh']['vol'])
+    mesh = SOLPSMesh(state['mesh']['r'], state['mesh']['z'], state['mesh']['vol'], state['mesh']['neighbix'], state['mesh']['neighbiy'])
     simulation = SOLPSSimulation(mesh, state['species_list'])
     simulation.__setstate__(state)
     file_handle.close()
