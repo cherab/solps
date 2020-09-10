@@ -47,16 +47,16 @@ def load_b2f_file(filepath, debug=False):
 
         # Multiple 2D data field (e.g. na)
         if number > nxyg:
-            _data = np.array(_data).reshape((nxg, nyg, int(number / nxyg)), order='F')
+            _data = np.array(_data).reshape((int(number / nxyg), nyg, nxg))
             if debug:
-                print('Mesh data field {} with dimensions:  {:d} x {:d} x {:d}'.format(name, nxg, nyg, int(number/nxyg)))
+                print('Mesh data field {} with dimensions:  {:d} x {:d} x {:d}'.format(name, int(number / nxyg), nyg, nxg))
             return MESH_DATA, _data
 
         # 2D data field (e.g. ne)
         elif number == nxyg:
-            _data = np.array(_data).reshape((nxg, nyg), order='F')
+            _data = np.array(_data).reshape((nyg, nxg))
             if debug:
-                print('Mesh data field {} with dimensions:  {:d} x {:d}'.format(name, nxg, nyg))
+                print('Mesh data field {} with dimensions:  {:d} x {:d}'.format(name, nyg, nxg))
             return MESH_DATA, _data
 
         # Additional information field (e.g. zamin)

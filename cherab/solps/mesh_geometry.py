@@ -40,15 +40,15 @@ class SOLPSMesh:
     triangle vertices. Therefore, each SOLPS rectangular cell is split into two triangular cells. The data points are
     later interpolated onto the vertex points.
 
-    :param ndarray r: Array of cell vertex r coordinates, must be 3 dimensional. Example shape is (98 x 32 x 4).
-    :param ndarray z: Array of cell vertex z coordinates, must be 3 dimensional. Example shape is (98 x 32 x 4).
-    :param ndarray vol: Array of cell volumes. Example shape is (98 x 32).
+    :param ndarray r: Array of cell vertex r coordinates, must be 3 dimensional. Example shape is (4 x 32 x 98).
+    :param ndarray z: Array of cell vertex z coordinates, must be 3 dimensional. Example shape is (4 x 32 x 98).
+    :param ndarray vol: Array of cell volumes. Example shape is (32 x 98).
     :param ndarray neighbix: Array of poloidal indeces of neighbouring cells in order: left, bottom, right, top,
-                             must be 3 dimensional. Example shape is (98 x 32 x 4).
+                             must be 3 dimensional. Example shape is (4 x 32 x 98).
                              In SOLPS notation: left/right - poloidal prev./next, bottom/top - radial prev./next.
                              Cell indexing starts with 0 and -1 means no neighbour.
     :param ndarray neighbix: Array of radial indeces of neighbouring cells in order: left, bottom, right, top,
-                             must be 3 dimensional. Example shape is (98 x 32 x 4).
+                             must be 3 dimensional. Example shape is (4 x 32 x 98).
     """
 
     # TODO Make neighbix and neighbix optional in the future, as they can be reconstructed with _tri_index_loopup
@@ -58,8 +58,8 @@ class SOLPSMesh:
         if r.shape != z.shape:
             raise ValueError('Shape of r array: %s mismatch the shape of z array: %s.' % (r.shape, z.shape))
 
-        if vol.shape != r.shape[:-1]:
-            raise ValueError('Shape of vol array: %s mismatch the grid dimentions: %s.' % (vol.shape, r.shape[:-1]))
+        if vol.shape != r.shape[1:]:
+            raise ValueError('Shape of vol array: %s mismatch the grid dimentions: %s.' % (vol.shape, r.shape[1:]))
 
         if neighbix.shape != r.shape:
             raise ValueError('Shape of neighbix array must be %s, but it is  %s.' % (r.shape, neighbix.shape))
@@ -67,11 +67,11 @@ class SOLPSMesh:
         if neighbiy.shape != r.shape:
             raise ValueError('Shape of neighbix array must be %s, but it is  %s.' % (r.shape, neighbiy.shape))
 
-        self._cr = r.sum(2) / 4.
-        self._cz = z.sum(2) / 4.
+        self._cr = r.sum(0) / 4.
+        self._cz = z.sum(0) / 4.
 
-        self._nx = r.shape[0]
-        self._ny = r.shape[1]
+        self._nx = r.shape[2]  # poloidal
+        self._ny = r.shape[1]  # radial
 
         self._r = r
         self._z = z
@@ -84,37 +84,37 @@ class SOLPSMesh:
         self.vessel = None
 
         # Calculating poloidal basis vector
-        self._poloidal_basis_vector = np.zeros((self._nx, self._ny, 2))
-        vec_r = r[:, :, 1] - r[:, :, 0]
-        vec_z = z[:, :, 1] - z[:, :, 0]
+        self._poloidal_basis_vector = np.zeros((2, self._ny, self._nx))
+        vec_r = r[1] - r[0]
+        vec_z = z[1] - z[0]
         vec_magn = np.sqrt(vec_r**2 + vec_z**2)
-        self._poloidal_basis_vector[:, :, 0] = np.divide(vec_r, vec_magn, out=np.zeros((self._nx, self._ny)), where=(vec_magn > 0))
-        self._poloidal_basis_vector[:, :, 1] = np.divide(vec_z, vec_magn, out=np.zeros((self._nx, self._ny)), where=(vec_magn > 0))
+        self._poloidal_basis_vector[0] = np.divide(vec_r, vec_magn, out=np.zeros_like(vec_magn), where=(vec_magn > 0))
+        self._poloidal_basis_vector[1] = np.divide(vec_z, vec_magn, out=np.zeros_like(vec_magn), where=(vec_magn > 0))
 
         # Calculating radial contact areas
-        self._radial_area = np.pi * (r[:, :, 1] + r[:, :, 0]) * vec_magn[:, :]
+        self._radial_area = np.pi * (r[1] + r[0]) * vec_magn
 
         # Calculating radial basis vector
-        self._radial_basis_vector = np.zeros((self._nx, self._ny, 2))
-        vec_r = r[:, :, 2] - r[:, :, 0]
-        vec_z = z[:, :, 2] - z[:, :, 0]
+        self._radial_basis_vector = np.zeros((2, self._ny, self._nx))
+        vec_r = r[2] - r[0]
+        vec_z = z[2] - z[0]
         vec_magn = np.sqrt(vec_r**2 + vec_z**2)
-        self._radial_basis_vector[:, :, 0] = np.divide(vec_r, vec_magn, out=np.zeros((self._nx, self._ny)), where=(vec_magn > 0))
-        self._radial_basis_vector[:, :, 1] = np.divide(vec_z, vec_magn, out=np.zeros((self._nx, self._ny)), where=(vec_magn > 0))
+        self._radial_basis_vector[0] = np.divide(vec_r, vec_magn, out=np.zeros_like(vec_magn), where=(vec_magn > 0))
+        self._radial_basis_vector[1] = np.divide(vec_z, vec_magn, out=np.zeros_like(vec_magn), where=(vec_magn > 0))
 
         # Calculating poloidal contact areas
-        self._poloidal_area = np.pi * (r[:, :, 2] + r[:, :, 0]) * vec_magn[:, :]
+        self._poloidal_area = np.pi * (r[2] + r[0]) * vec_magn
 
         # For convertion from Cartesian to poloidal
         # TODO Make it work with trianle cells
-        self._inv_det = 1. / (self._poloidal_basis_vector[:, :, 0] * self._radial_basis_vector[:, :, 1] -
-                              self._poloidal_basis_vector[:, :, 1] * self._radial_basis_vector[:, :, 0])
+        self._inv_det = 1. / (self._poloidal_basis_vector[0] * self._radial_basis_vector[1] -
+                              self._poloidal_basis_vector[1] * self._radial_basis_vector[0])
 
         # Test for basis vector calculation
-        # plt.quiver(self._cr[:, 0], self._cz[:, 0], self._radial_basis_vector[:, 0, 0], self._radial_basis_vector[:, 0, 1], color='k')
-        # plt.quiver(self._cr[:, 0], self._cz[:, 0], self._poloidal_basis_vector[:, 0, 0], self._poloidal_basis_vector[:, 0, 1], color='r')
-        # plt.quiver(self._cr[:, -1], self._cz[:, -1], self._radial_basis_vector[:, -1, 0], self._radial_basis_vector[:, -1, 1], color='k')
-        # plt.quiver(self._cr[:, -1], self._cz[:, -1], self._poloidal_basis_vector[:, -1, 0], self._poloidal_basis_vector[:, -1, 1], color='r')
+        # plt.quiver(self._cr[0], self._cz[0], self._radial_basis_vector[0, 0], self._radial_basis_vector[1, 0], color='k')
+        # plt.quiver(self._cr[0], self._cz[0], self._poloidal_basis_vector[0, 0], self._poloidal_basis_vector[1, 0], color='r')
+        # plt.quiver(self._cr[-1], self._cz[-1], self._radial_basis_vector[0, -1], self._radial_basis_vector[1, -1], color='k')
+        # plt.quiver(self._cr[-1], self._cz[-1], self._poloidal_basis_vector[0, -1], self._poloidal_basis_vector[1, -1], color='r')
         # plt.gca().set_aspect('equal')
         # plt.show()
 
@@ -133,31 +133,32 @@ class SOLPSMesh:
 
         # Pull out the index number for each unique vertex in this rectangular cell.
         # Unusual vertex indexing is based on SOLPS output, see Matlab code extract from David Moulton.
-        self._triangles[0::2, 0] = unique_vertices[0::4]
-        self._triangles[0::2, 1] = unique_vertices[2::4]
-        self._triangles[0::2, 2] = unique_vertices[3::4]
+        ng = self._nx * self._ny  # grid size
+        self._triangles[0::2, 0] = unique_vertices[0:ng]
+        self._triangles[0::2, 1] = unique_vertices[2 * ng: 3 * ng]
+        self._triangles[0::2, 2] = unique_vertices[3 * ng: 4 * ng]
         # Split the quad cell into two triangular cells.
-        self._triangles[1::2, 0] = unique_vertices[3::4]
-        self._triangles[1::2, 1] = unique_vertices[1::4]
-        self._triangles[1::2, 2] = unique_vertices[0::4]
+        self._triangles[1::2, 0] = unique_vertices[3 * ng: 4 * ng]
+        self._triangles[1::2, 1] = unique_vertices[ng: 2 * ng]
+        self._triangles[1::2, 2] = unique_vertices[0:ng]
 
         # Each triangle cell is mapped to the tuple ID (ix, iy) of its parent mesh cell.
-        xm, ym = np.meshgrid(np.arange(self._nx, dtype=np.int32), np.arange(self._ny, dtype=np.int32), indexing='ij')
-        self._triangle_to_grid_map[::2, 0] = xm.flatten()
-        self._triangle_to_grid_map[::2, 1] = ym.flatten()
-        self._triangle_to_grid_map[1::2, :] = self._triangle_to_grid_map[::2, :]
+        ym, xm = np.meshgrid(np.arange(self._ny, dtype=np.int32), np.arange(self._nx, dtype=np.int32), indexing='ij')
+        self._triangle_to_grid_map[::2, 0] = ym.flatten()
+        self._triangle_to_grid_map[::2, 1] = xm.flatten()
+        self._triangle_to_grid_map[1::2] = self._triangle_to_grid_map[::2]
 
         tri_indices = np.arange(self._num_tris, dtype=np.int32)
         self._tri_index_loopup = Discrete2DMesh(self._vertex_coords, self._triangles, tri_indices)
 
     @property
     def nx(self):
-        """Number of grid cells in the x direction."""
+        """Number of grid cells in the poloidal direction."""
         return self._nx
 
     @property
     def ny(self):
-        """Number of grid cells in the y direction."""
+        """Number of grid cells in the radial direction."""
         return self._ny
 
     @property
@@ -241,7 +242,7 @@ class SOLPSMesh:
         bx = (p_x  r_x) ( b_p )
         by   (p_y  r_y) ( b_r )
 
-        :return: ndarray with shape (nx, ny, 2).
+        :return: ndarray with shape (2, ny, nx).
         """
         return self._poloidal_basis_vector
 
@@ -256,14 +257,14 @@ class SOLPSMesh:
         bx = (p_x  r_x) ( b_p )
         by   (p_y  r_y) ( b_r )
 
-        :return: ndarray with shape (nx, ny, 2).
+        :return: ndarray with shape (2, ny, nx).
         """
         return self._radial_basis_vector
 
     @property
     def triangle_to_grid_map(self):
         """
-        Array mapping every triangle index to a tuple grid cell ID, i.e. (ix, iy).
+        Array mapping every triangle index to a tuple grid cell ID, i.e. (iy, ix).
 
         :return: ndarray with shape (nx*ny*2, 2)
         """
@@ -293,30 +294,28 @@ class SOLPSMesh:
     def to_cartesian(self, vec_pol):
         """
         Converts the 2D vector defined on mesh from poloidal to cartesian coordinates.
-        :param ndarray vec_pol: Array of 2D vector with with shape (nx, ny, 2).
-            [:, :, 0] - poloidal component, [:, :, 1] - radial component
+        :param ndarray vec_pol: Array of 2D vector with with shape (2, ny, nx).
+            [0, :, :] - poloidal component, [1, :, :] - radial component
 
-        :return: ndarray with shape (nx, ny, 2)
+        :return: ndarray with shape (2, ny, nx)
         """
-        vec_cart = np.zeros((self._nx, self._ny, 2))
-        vec_cart[:, :, 0] = self._poloidal_basis_vector[:, :, 0] * vec_pol[:, :, 0] + self._radial_basis_vector[:, :, 0] * vec_pol[:, :, 1]
-        vec_cart[:, :, 1] = self._poloidal_basis_vector[:, :, 1] * vec_pol[:, :, 0] + self._radial_basis_vector[:, :, 1] * vec_pol[:, :, 1]
+        vec_cart = np.zeros((2, self._ny, self._nx))
+        vec_cart[0] = self._poloidal_basis_vector[0] * vec_pol[0] + self._radial_basis_vector[0] * vec_pol[1]
+        vec_cart[1] = self._poloidal_basis_vector[1] * vec_pol[0] + self._radial_basis_vector[1] * vec_pol[1]
 
         return vec_cart
 
     def to_poloidal(self, vec_cart):
         """
         Converts the 2D vector defined on mesh from cartesian to poloidal coordinates.
-        :param ndarray vector_on_mesh: Array of 2D vector with with shape (nx, ny, 2).
-            [:, :, 0] - R component, [:, :, 1] - Z component
+        :param ndarray vector_on_mesh: Array of 2D vector with with shape (2, ny, nx).
+            [0, :, :] - R component, [1, :, :] - Z component
 
-        :return: ndarray with shape (nx, ny, 2)
+        :return: ndarray with shape (2, ny, nx)
         """
-        vec_pol = np.zeros((self._nx, self._ny, 2))
-        vec_pol[:, :, 0] = self._inv_det * (self._radial_basis_vector[:, :, 1] * vec_cart[:, :, 0] -
-                                            self._radial_basis_vector[:, :, 0] * vec_cart[:, :, 1])
-        vec_pol[:, :, 1] = self._inv_det * (self._poloidal_basis_vector[:, :, 0] * vec_cart[:, :, 1] -
-                                            self._poloidal_basis_vector[:, :, 1] * vec_cart[:, :, 0])
+        vec_pol = np.zeros((2, self._ny, self._nx))
+        vec_pol[0] = self._inv_det * (self._radial_basis_vector[1] * vec_cart[0] - self._radial_basis_vector[0] * vec_cart[1])
+        vec_pol[1] = self._inv_det * (self._poloidal_basis_vector[0] * vec_cart[1] - self._poloidal_basis_vector[1] * vec_cart[0])
 
         return vec_pol
 

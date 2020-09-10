@@ -91,7 +91,7 @@ class Eirene:
     @property
     def nx(self):
         """
-        Number of grid cells in the x direction
+        Number of grid cells in the poloidal direction
 
         :rtype: int
         """
@@ -100,7 +100,7 @@ class Eirene:
     @property
     def ny(self):
         """
-        Number of grid cells in the y direction
+        Number of grid cells in the radial direction
 
         :rtype: int
         """
@@ -426,13 +426,13 @@ class Eirene:
         self._check_dimensions(value, 1)
         self._eradt = value
 
-    def _check_dimensions(self, data, dim2):
+    def _check_dimensions(self, data, dim0):
         """
         Checks compatibility of the data array dimension with the species number and grid size.
-        :param dim2: size of the 2nd dimenion
+        :param dim0: size of the 1st dimenion
         :return:
         """
 
-        if not data.shape == (self._nx, self._ny, dim2):
+        if not data.shape == (dim0, self._ny, self._nx):
             raise ValueError("Array with shape {0} obtained, but {1} expected".format(data.shape,
-                                                                                      (self._nx, self._ny, dim2)))
+                                                                                      (dim0, self._ny, self._nx)))

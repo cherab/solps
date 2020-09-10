@@ -101,7 +101,9 @@ cdef class SOLPSVectorFunction3D(VectorFunction3D):
 
         # print(self._grid_vectors.shape)
         # Lookup vector for this grid cell.
-        vx, vy, vz = self._grid_vectors[ix, iy, :]
+        vx = self._grid_vectors[0, ix, iy]
+        vy = self._grid_vectors[1, ix, iy]
+        vz = self._grid_vectors[2, ix, iy]
         v = new_vector3d(vx, vy, vz)
 
         # Rotate vector field around the z-axis.

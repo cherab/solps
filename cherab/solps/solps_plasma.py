@@ -39,19 +39,7 @@ from .solps_3d_functions import SOLPSFunction3D, SOLPSVectorFunction3D
 from .mesh_geometry import SOLPSMesh
 
 
-# TODO: This interface is half broken - some routines expect internal data as arrays, others as function 3d.
-#
-#       In the future SOLPSSimulation should keep the data arrays in self._data dict, e.g. self._data["electron_temperature"], etc.
-#       Method self.set_electon_temperature(value) should set self._data["electron_temperature"] to value and
-#       initialise self._electron_temperature as a Discrete2DMesh (or AxisymmetricMapper, or SOLPSFunction3D), etc.
-#       Method self.get_electon_temperature() should return np.copy(self._data["electron_temperature"]), while
-#       self.electron_temperature should return a Discrete2DMesh (or AxisymmetricMapper, or SOLPSFunction3D) instance, etc.
-#
-#       As an option: self.electron_temperature returns a Discrete2DMesh instance, self.electron_temperature_3d returns
-#       AxisymmetricMapper or SOLPSFunction3D (?).
-#
-#       Also, there is some confusion in coordinates system names. We have curvilinear poloidal coordinates (poloidal, radial, toroidal),
-#       plane toroidal coordinates (R, Z, toroidal) and Cartesian coordinates (x, y, z). For now toroidal coordinates refered as Cartesian.
+# TODO: Implement *_as_f2d() and *_as_f3d() interpolators for plasma parameters
 
 class SOLPSSimulation:
 
@@ -79,12 +67,12 @@ class SOLPSSimulation:
         self._species_density = None
         self._velocities = None
         self._velocities_cartesian = None
-        self._total_rad = None
+        self._total_radiation = None
         self._b_field_vectors = None
         self._b_field_vectors_cartesian = None
-        self._eirene_model = None
-        self._b2_model = None
-        self._eirene = None
+        self._eirene_model = None  # what is this for?
+        self._b2_model = None  # what is this for?
+        self._eirene = None  # do we need this in SOLPSSimulation?
 
     @property
     def mesh(self):
@@ -110,12 +98,9 @@ class SOLPSSimulation:
         """
         return self._electron_temperature
 
-    def get_electron_temperature(self):
-
-        return self._electron_temperature
-
-    def set_electron_temperature(self, value):
-        _check_array("electron_temperature", value, (self.mesh.nx, self.mesh.ny))
+    @electron_temperature.setter
+    def electron_temperature(self, value):
+        _check_array("electron_temperature", value, (self.mesh.ny, self.mesh.nx))
 
         self._electron_temperature = value
 
@@ -127,12 +112,9 @@ class SOLPSSimulation:
         """
         return self._ion_temperature
 
-    def get_ion_temperature(self):
-
-        return self._ion_temperature
-
-    def set_ion_temperature(self, value):
-        _check_array("ion_temperature", value, (self.mesh.nx, self.mesh.ny))
+    @ion_temperature.setter
+    def ion_temperature(self, value):
+        _check_array("ion_temperature", value, (self.mesh.ny, self.mesh.nx))
 
         self._ion_temperature = value
 
@@ -144,13 +126,10 @@ class SOLPSSimulation:
         """
         return self._neutral_temperature
 
-    def get_neutral_temperature(self):
-
-        return self._neutral_temperature
-
-    def set_neutral_temperature(self, value):
+    @neutral_temperature.setter
+    def neutral_temperature(self, value):
         num_neutrals = len([sp for sp in self.species_list if sp[1] == 0])
-        _check_array("neutral_temperature", value, (self.mesh.nx, self.mesh.ny, num_neutrals))
+        _check_array("neutral_temperature", value, (num_neutrals, self.mesh.ny, self.mesh.nx))
 
         self._neutral_temperature = value
 
@@ -162,12 +141,9 @@ class SOLPSSimulation:
         """
         return self._electron_density
 
-    def get_electron_density(self):
-
-        return self._electron_density
-
-    def set_electron_density(self, value):
-        _check_array("electron_density", value, (self.mesh.nx, self.mesh.ny))
+    @electron_density.setter
+    def electron_density(self, value):
+        _check_array("electron_density", value, (self.mesh.ny, self.mesh.nx))
 
         self._electron_density = value
 
@@ -179,12 +155,9 @@ class SOLPSSimulation:
         """
         return self._species_density
 
-    def get_species_density(self):
-
-        return self._species_density
-
-    def set_species_density(self, value):
-        _check_array("species_density", value, (self.mesh.nx, self.mesh.ny, len(self.species_list)))
+    @species_density.setter
+    def species_density(self, value):
+        _check_array("species_density", value, (len(self.species_list), self.mesh.ny, self.mesh.nx))
 
         self._species_density = value
 
@@ -196,18 +169,15 @@ class SOLPSSimulation:
         """
         return self._velocities
 
-    def get_velocities(self):
-
-        return self._velocities
-
-    def set_velocities(self, value):
-        _check_array("velocities", value, (self.mesh.nx, self.mesh.ny, len(self.species_list), 3))
+    @velocities.setter
+    def velocities(self, value):
+        _check_array("velocities", value, (len(self.species_list), 3, self.mesh.ny, self.mesh.nx))
 
         # Converting to Cartesian coordinates
         velocities_cartesian = np.zeros(value.shape)
-        velocities_cartesian[:, :, :, 2] = value[:, :, :, 2]
-        for k in range(value.shape[2]):
-            velocities_cartesian[:, :, k, :2] = self.mesh.to_cartesian(value[:, :, k, :2])
+        velocities_cartesian[:, 2] = value[:, 2]
+        for k in range(value.shape[0]):
+            velocities_cartesian[k, :2] = self.mesh.to_cartesian(value[k, :2])
 
         self._velocities_cartesian = velocities_cartesian
         self._velocities = value
@@ -218,21 +188,17 @@ class SOLPSSimulation:
         Velocities in Cartesian (v_r, v_z, v_toroidal) coordinates for each species densities at each mesh cell.
         :return:
         """
-        # TODO: If converted to SOLPSVectorFunction3D, should porbably return at (vx, vy, vz) at (x, y, z). (?)
         return self._velocities_cartesian
 
-    def get_velocities_cartesian(self):
-
-        return self._velocities_cartesian
-
-    def set_velocities_cartesian(self, value):
-        _check_array("velocities_cartesian", value, (self.mesh.nx, self.mesh.ny, len(self.species_list), 3))
+    @velocities_cartesian.setter
+    def velocities_cartesian(self, value):
+        _check_array("velocities_cartesian", value, (len(self.species_list), 3, self.mesh.ny, self.mesh.nx))
 
         # Converting to poloidal coordinates
         velocities = np.zeros(value.shape)
-        velocities[:, :, :, 2] = value[:, :, :, 2]
-        for k in range(value.shape[2]):
-            velocities[:, :, k, :2] = self.mesh.to_poloidal(value[:, :, k, :2])
+        velocities[:, 2] = value[:, 2]
+        for k in range(value.shape[0]):
+            velocities[k, :2] = self.mesh.to_poloidal(value[k, :2])
 
         self._velocities = value
         self._velocities_cartesian = value
@@ -256,19 +222,16 @@ class SOLPSSimulation:
         Is calculated from the sum of all integrated line emission and all Bremmstrahlung. The signals used are 'RQRAD'
         and 'RQBRM'. Final output is in W/str?
         """
-        if self._total_rad is None:
+        if self._total_radiation is None:
             raise RuntimeError("Total radiation not available for this simulation.")
         else:
-            return self._total_rad
+            return self._total_radiation
 
-    def get_total_radiation(self):
+    @total_radiation.setter
+    def total_radiation(self, value):
+        _check_array("total_radiation", value, (self.mesh.ny, self.mesh.nx))
 
-        return self._total_rad
-
-    def set_total_radiation(self, value):
-        _check_array("total_radiation", value, (self.mesh.nx, self.mesh.ny))
-
-        self._total_rad = value
+        self._total_radiation = value
 
     # TODO: decide is this a 2D or 3D interface?
     @property
@@ -293,51 +256,44 @@ class SOLPSSimulation:
         """
         Magnetic B field at each mesh cell in mesh cell coordinates (b_poloidal, b_radial, b_toroidal).
         """
-        if self._b_field_vectors is None:
+        if self._b_field is None:
             raise RuntimeError("Magnetic field not available for this simulation.")
         else:
-            return self._b_field_vectors
+            return self._b_field
 
-    def get_b_field(self):
-
-        return self._b_field_vectors
-
-    def set_b_field(self, value):
-        _check_array("b_field", value, (self.mesh.nx, self.mesh.ny, 3))
+    @b_field.setter
+    def b_field(self, value):
+        _check_array("b_field", value, (3, self.mesh.ny, self.mesh.nx))
 
         # Converting to cartesian system
-        b_field_vectors_cartesian = np.zeros(value.shape)
-        b_field_vectors_cartesian[:, :, 2] = value[:, :, 2]
-        b_field_vectors_cartesian[:, :, :2] = self.mesh.to_cartesian(value[:, :, :2])
+        b_field_cartesian = np.zeros(value.shape)
+        b_field_cartesian[2] = value[2]
+        b_field_cartesian[:2] = self.mesh.to_cartesian(value[:2])
 
-        self._b_field_vectors_cartesian = b_field_vectors_cartesian
-        self._b_field_vectors = value
+        self._b_field_cartesian = b_field_cartesian
+        self._b_field = value
 
     @property
     def b_field_cartesian(self):
         """
         Magnetic B field at each mesh cell in Cartesian coordinates (B_r, B_z, B_toroidal).
         """
-        # TODO: If converted to SOLPSVectorFunction3D, should porbably return at (Bx, By, Bz) at (x, y, z). (?)
-        if self._b_field_vectors_cartesian is None:
+        if self._b_field_cartesian is None:
             raise RuntimeError("Magnetic field not available for this simulation.")
         else:
-            return self._b_field_vectors_cartesian
+            return self._b_field_cartesian
 
-    def get_b_field_cartesian(self):
-
-        return self._b_field_vectors_cartesian
-
-    def set_b_field_cartesian(self, value):
-        _check_array("b_field_cartesian", value, (self.mesh.nx, self.mesh.ny, 3))
+    @b_field_cartesian.setter
+    def b_field_cartesian(self, value):
+        _check_array("b_field_cartesian", value, (3, self.mesh.ny, self.mesh.nx))
 
         # Converting to poloidal system
-        b_field_vectors = np.zeros(value.shape)
-        b_field_vectors[:, :, 2] = value[:, :, 2]
-        b_field_vectors[:, :, :2] = self.mesh.to_poloidal(value[:, :, :2])
+        b_field = np.zeros(value.shape)
+        b_field[2] = value[2]
+        b_field[:2] = self.mesh.to_poloidal(value[:2])
 
-        self._b_field_vectors = b_field_vectors
-        self._b_field_vectors_cartesian = value
+        self._b_field = b_field
+        self._b_field_cartesian = value
 
     @property
     def eirene_simulation(self):
@@ -370,9 +326,9 @@ class SOLPSSimulation:
             'velocities': self._velocities,
             'velocities_cartesian': self._velocities_cartesian,
             'inside_mesh': self._inside_mesh,
-            'total_rad': self._total_rad,
-            'b_field_vectors': self._b_field_vectors,
-            'b_field_vectors_cartesian': self._b_field_vectors_cartesian,
+            'total_radiation': self._total_radiation,
+            'b_field': self._b_field,
+            'b_field_cartesian': self._b_field_cartesian,
             'eirene_model': self._eirene_model,
             'b2_model': self._b2_model,
             'eirene': self._eirene
@@ -390,9 +346,9 @@ class SOLPSSimulation:
         self._velocities = state['velocities']
         self._velocities_cartesian = state['velocities_cartesian']
         self._inside_mesh = state['inside_mesh']
-        self._total_rad = state['total_rad']
-        self._b_field_vectors = state['b_field_vectors']
-        self._b_field_vectors_cartesian = state['b_field_vectors_cartesian']
+        self._total_radiation = state['total_radiation']
+        self._b_field = state['b_field']
+        self._b_field_cartesian = state['b_field_cartesian']
         self._eirene_model = state['eirene_model']
         self._b2_model = state['b2_model']
         self._eirene = state['eirene']
@@ -560,28 +516,27 @@ class SOLPSSimulation:
         tri_to_grid = self.mesh.triangle_to_grid_map
 
         try:
-            plasma.b_field = SOLPSVectorFunction3D(tri_index_lookup, tri_to_grid, self.get_b_field_cartesian())
-            # self.get_.. always returns data even if self.b_field_cartesian will return function in the future
+            plasma.b_field = SOLPSVectorFunction3D(tri_index_lookup, tri_to_grid, self.b_field_cartesian)
         except RuntimeError:
             print('Warning! No magnetic field data available for this simulation.')
 
         # Create electron species
-        triangle_data = _map_data_onto_triangles(self.get_electron_temperature())
+        triangle_data = _map_data_onto_triangles(self.electron_temperature)
         electron_te_interp = Discrete2DMesh(mesh.vertex_coordinates, mesh.triangles, triangle_data, limit=False)
         electron_temp = AxisymmetricMapper(electron_te_interp)
-        triangle_data = _map_data_onto_triangles(self.get_electron_density())
+        triangle_data = _map_data_onto_triangles(self.electron_density)
         electron_dens = AxisymmetricMapper(Discrete2DMesh.instance(electron_te_interp, triangle_data))
         electron_velocity = lambda x, y, z: Vector3D(0, 0, 0)
         plasma.electron_distribution = Maxwellian(electron_dens, electron_temp, electron_velocity, electron_mass)
 
         # Ion temperature
-        triangle_data = _map_data_onto_triangles(self.get_ion_temperature())
+        triangle_data = _map_data_onto_triangles(self.ion_temperature)
         ion_temp = AxisymmetricMapper(Discrete2DMesh.instance(electron_te_interp, triangle_data))
 
-        if self.get_velocities_cartesian() is None:
+        if self.velocities_cartesian is None:
             print('Warning! No velocity field data available for this simulation.')
 
-        if self.get_neutral_temperature() is None:
+        if self.neutral_temperature is None:
             print('Warning! No neutral atom temperature data available for this simulation.')
 
         neutral_i = 0  # neutrals count
@@ -594,22 +549,22 @@ class SOLPSSimulation:
 
             charge = sp[1]
 
-            triangle_data = _map_data_onto_triangles(self.get_species_density()[:, :, k])
+            triangle_data = _map_data_onto_triangles(self.species_density[k])
             dens = AxisymmetricMapper(Discrete2DMesh.instance(electron_te_interp, triangle_data))
 
-            # dens = SOLPSFunction3D(tri_index_lookup, tri_to_grid, self.species_density[:, :, k])
+            # dens = SOLPSFunction3D(tri_index_lookup, tri_to_grid, self.species_density[k])
 
             # Create the velocity vector lookup function
-            if self.get_velocities_cartesian() is not None:
-                velocity = SOLPSVectorFunction3D(tri_index_lookup, tri_to_grid, self.get_velocities_cartesian()[:, :, k, :])
+            if self.velocities_cartesian is not None:
+                velocity = SOLPSVectorFunction3D(tri_index_lookup, tri_to_grid, self.velocities_cartesian[k])
             else:
                 velocity = lambda x, y, z: Vector3D(0, 0, 0)
 
-            if charge or self.get_neutral_temperature() is None:  # ions or neutral atoms (neutral temperature is not available)
+            if charge or self.neutral_temperature is None:  # ions or neutral atoms (neutral temperature is not available)
                 distribution = Maxwellian(dens, ion_temp, velocity, species_type.atomic_weight * atomic_mass)
 
             else:  # neutral atoms with neutral temperature
-                triangle_data = _map_data_onto_triangles(self.get_neutral_temperature()[:, :, neutral_i])
+                triangle_data = _map_data_onto_triangles(self.neutral_temperature[neutral_i])
                 neutral_temp = AxisymmetricMapper(Discrete2DMesh.instance(electron_te_interp, triangle_data))
                 distribution = Maxwellian(dens, neutral_temp, velocity, species_type.atomic_weight * atomic_mass)
                 neutral_i += 1
@@ -659,81 +614,81 @@ def b2_flux_to_velocity(mesh, density, poloidal_flux, radial_flux, parallel_velo
 
     :param SOLPSMesh mesh: SOLPS simulation mesh.
     :param ndarray density: Density of atoms in m-3. Must be 3 dimensiona array of
-                            shape (mesh.nx, mesh.ny, num_atoms).
+                            shape (num_atoms, mesh.ny, mesh.nx).
     :param ndarray poloidal_flux: Poloidal flux of atoms in s-1. Must be a 3 dimensional array of
-                                  shape (mesh.nx, mesh.ny, num_atoms).
+                                  shape (num_atoms, mesh.ny, mesh.nx).
     :param ndarray radial_flux: Radial flux of atoms in s-1. Must be a 3 dimensional array of
-                                shape (mesh.nx, mesh.ny, num_atoms).
+                                shape (num_atoms, mesh.ny, mesh.nx).
     :param ndarray parallel_velocity: Parallel velocity of atoms in m/s. Must be a 3 dimensional
-                                      array of shape (mesh.nx, mesh.ny, num_atoms).
+                                      array of shape (num_atoms, mesh.ny, mesh.nx).
                                       Parallel velocity is a velocity projection on magnetic
                                       field direction.
     :param ndarray b_field_cartesian: Magnetic field in Cartesian (R, Z, phi) coordinates.
-                                      Must be a 3 dimensional array of shape (mesh.nx, mesh.ny, 3).
+                                      Must be a 3 dimensional array of shape (3, mesh.ny, mesh.nx).
 
     :return: Velocities of atoms in (R, Z, phi) coordinates as a 4-dimensional ndarray of
-             shape (mesh.nx, mesh.ny, num_atoms, 3)
+             shape (num_atoms, 3, mesh.ny, mesh.nx)
     """
 
-    nx = mesh.nx
-    ny = mesh.ny
-    ns = density.shape[2]
+    nx = mesh.nx  # poloidal
+    ny = mesh.ny  # radial
+    ns = density.shape[0]  # number of species
 
-    _check_array('density', poloidal_flux, (nx, ny, ns))
-    _check_array('poloidal_flux', poloidal_flux, (nx, ny, ns))
-    _check_array('radial_flux', radial_flux, (nx, ny, ns))
-    _check_array('parallel_velocity', parallel_velocity, (nx, ny, ns))
-    _check_array('b_field_cartesian', b_field_cartesian, (nx, ny, 3))
+    _check_array('density', density, (ns, ny, nx))
+    _check_array('poloidal_flux', poloidal_flux, (ns, ny, nx))
+    _check_array('radial_flux', radial_flux, (ns, ny, nx))
+    _check_array('parallel_velocity', parallel_velocity, (ns, ny, nx))
+    _check_array('b_field_cartesian', b_field_cartesian, (3, ny, nx))
 
-    poloidal_area = mesh.poloidal_area[:, :, None]
-    radial_area = mesh.radial_area[:, :, None]
-    leftix = mesh.neighbix[:, :, 0]  # poloidal prev.
-    leftiy = mesh.neighbiy[:, :, 0]
-    bottomix = mesh.neighbix[:, :, 1]  # radial prev.
-    bottomiy = mesh.neighbiy[:, :, 1]
-    rightix = mesh.neighbix[:, :, 2]   # poloidal next.
-    rightiy = mesh.neighbiy[:, :, 2]
-    topix = mesh.neighbix[:, :, 3]  # radial next.
-    topiy = mesh.neighbiy[:, :, 3]
+    poloidal_area = mesh.poloidal_area[None]
+    radial_area = mesh.radial_area[None]
+    leftix = mesh.neighbix[0]  # poloidal prev.
+    leftiy = mesh.neighbiy[0]
+    bottomix = mesh.neighbix[1]  # radial prev.
+    bottomiy = mesh.neighbiy[1]
+    rightix = mesh.neighbix[2]   # poloidal next.
+    rightiy = mesh.neighbiy[2]
+    topix = mesh.neighbix[3]  # radial next.
+    topiy = mesh.neighbiy[3]
 
     # Converting s-1 --> m-2 s-1
     poloidal_flux = np.divide(poloidal_flux, poloidal_area, out=np.zeros_like(poloidal_flux), where=poloidal_area > 0)
     radial_flux = np.divide(radial_flux, radial_area, out=np.zeros_like(radial_flux), where=radial_area > 0)
 
     # Obtaining left velocity
-    dens_neighb = density[leftix, leftiy, :]  # density in the left neighbouring cell
-    has_neighbour = ((leftix > -1) * (leftiy > -1))[:, :, None]  # check if has left neighbour
+    dens_neighb = density[:, leftiy, leftix]  # density in the left neighbouring cell
+    has_neighbour = ((leftix > -1) * (leftiy > -1))[None]  # check if has left neighbour
     neg_flux = (poloidal_flux < 0) * (density > 0)  # will use density in this cell if flux is negative
     pos_flux = (poloidal_flux > 0) * (dens_neighb > 0) * has_neighbour  # will use density in neighbouring cell if flux is positive
-    velocity_left = np.divide(poloidal_flux, density, out=np.zeros((nx, ny, ns)), where=neg_flux)
+    velocity_left = np.divide(poloidal_flux, density, out=np.zeros((ns, ny, nx)), where=neg_flux)
     velocity_left = np.divide(poloidal_flux, dens_neighb, out=velocity_left, where=pos_flux)
-    velocity_left = velocity_left[:, :, :, None] * mesh.poloidal_basis_vector[:, :, None, :]  # to vector in Cartesian
+    velocity_left = velocity_left[:, None] * mesh.poloidal_basis_vector[None]  # to vector in Cartesian
 
     # Obtaining bottom velocity
-    dens_neighb = density[bottomix, bottomiy, :]
-    has_neighbour = ((bottomix > -1) * (bottomiy > -1))[:, :, None]
+    dens_neighb = density[:, bottomiy, bottomix]
+    has_neighbour = ((bottomix > -1) * (bottomiy > -1))[None]
     neg_flux = (radial_flux < 0) * (density > 0)
     pos_flux = (poloidal_flux > 0) * (dens_neighb > 0) * has_neighbour
-    velocity_bottom = np.divide(radial_flux, density, out=np.zeros((nx, ny, ns)), where=neg_flux)
+    velocity_bottom = np.divide(radial_flux, density, out=np.zeros((ns, ny, nx)), where=neg_flux)
     velocity_bottom = np.divide(radial_flux, dens_neighb, out=velocity_bottom, where=pos_flux)
-    velocity_bottom = velocity_bottom[:, :, :, None] * mesh.radial_basis_vector[:, :, None, :]  # to Cartesian
+    velocity_bottom = velocity_bottom[:, None] * mesh.radial_basis_vector[None]  # to Cartesian
 
     # Obtaining right and top velocities
-    velocity_right = velocity_left[rightix, rightiy, :, :]
-    velocity_right[(rightix < 0) + (rightiy < 0)] = 0
+    velocity_right = velocity_left[:, :, rightiy, rightix]
+    velocity_right[:, :, (rightix < 0) + (rightiy < 0)] = 0
 
-    velocity_top = velocity_bottom[topix, topiy, :, :]
-    velocity_top[(topix < 0) + (topiy < 0)] = 0
+    velocity_top = velocity_bottom[:, :, topiy, topix]
+    velocity_top[:, :, (topix < 0) + (topiy < 0)] = 0
 
-    vcart = np.zeros((nx, ny, ns, 3))  # velocities in Cartesian coordinates
+    vcart = np.zeros((ns, 3, ny, nx))  # velocities in Cartesian coordinates
 
     # Projection of velocity on RZ-plane
-    vcart[:, :, :, :2] = 0.25 * (velocity_bottom + velocity_left + velocity_top + velocity_right)
+    vcart[:, :2] = 0.25 * (velocity_bottom + velocity_left + velocity_top + velocity_right)
 
     # Obtaining toroidal velocity
-    b = b_field_cartesian[:, :, None, :]
-    bmagn = np.sqrt((b * b).sum(3))
-    vcart[:, :, :, 2] = (parallel_velocity * bmagn - vcart[:, :, :, 0] * b[:, :, :, 0] - vcart[:, :, :, 1] * b[:, :, :, 1]) / b[:, :, :, 2]
+    b = b_field_cartesian[None]
+    bmagn = np.sqrt((b * b).sum(1))
+    vcart[:, 2] = (parallel_velocity * bmagn - vcart[:, 0] * b[:, 0] - vcart[:, 1] * b[:, 1]) / b[:, 2]
 
     return vcart
 
@@ -744,45 +699,44 @@ def eirene_flux_to_velocity(mesh, density, poloidal_flux, radial_flux, parallel_
 
     :param SOLPSMesh mesh: SOLPS simulation mesh.
     :param ndarray density: Density of atoms in m-3. Must be 3 dimensiona array of
-                            shape (mesh.nx, mesh.ny, num_atoms).
+                            shape (num_atoms, mesh.ny, mesh.nx).
     :param ndarray poloidal_flux: Poloidal flux of atoms in m-2 s-1. Must be a 3 dimensional array of
-                                  shape (mesh.nx, mesh.ny, num_atoms).
+                                  shape (num_atoms, mesh.ny, mesh.nx).
     :param ndarray radial_flux: Radial flux of atoms in m-2 s-1. Must be a 3 dimensional array of
-                                shape (mesh.nx, mesh.ny, num_atoms).
+                                shape (num_atoms, mesh.ny, mesh.nx).
     :param ndarray parallel_velocity: Parallel velocity of atoms in m/s. Must be a 3 dimensional
-                                      array of shape (mesh.nx, mesh.ny, num_atoms).
+                                      array of shape (num_atoms, mesh.ny, mesh.nx).
                                       Parallel velocity is a velocity projection on magnetic
                                       field direction.
     :param ndarray b_field_cartesian: Magnetic field in Cartesian (R, Z, phi) coordinates.
-                                      Must be a 3 dimensional array of shape (mesh.nx, mesh.ny, 3).
+                                      Must be a 3 dimensional array of shape (3, mesh.ny, mesh.nx).
 
     :return: Velocities of atoms in (R, Z, phi) coordinates as a 4-dimensional ndarray of
              shape (mesh.nx, mesh.ny, num_atoms, 3)
     """
 
-    nx = mesh.nx
-    ny = mesh.ny
-    ns = density.shape[2]
+    nx = mesh.nx  # poloidal
+    ny = mesh.ny  # radial
+    ns = density.shape[0]  # number of neutral atoms
 
-    _check_array('density', poloidal_flux, (nx, ny, ns))
-    _check_array('poloidal_flux', poloidal_flux, (nx, ny, ns))
-    _check_array('radial_flux', radial_flux, (nx, ny, ns))
-    _check_array('parallel_velocity', parallel_velocity, (nx, ny, ns))
-    _check_array('b_field_cartesian', b_field_cartesian, (nx, ny, 3))
+    _check_array('density', density, (ns, ny, nx))
+    _check_array('poloidal_flux', poloidal_flux, (ns, ny, nx))
+    _check_array('radial_flux', radial_flux, (ns, ny, nx))
+    _check_array('parallel_velocity', parallel_velocity, (ns, ny, nx))
+    _check_array('b_field_cartesian', b_field_cartesian, (3, ny, nx))
 
     # Obtaining velocity
-    poloidal_velocity = np.divide(poloidal_flux, density, out=np.zeros((nx, ny, ns)), where=(density > 0))
-    radial_velocity = np.divide(radial_flux, density, out=np.zeros((nx, ny, ns)), where=(density > 0))
+    poloidal_velocity = np.divide(poloidal_flux, density, out=np.zeros_like(density), where=(density > 0))
+    radial_velocity = np.divide(radial_flux, density, out=np.zeros_like(density), where=(density > 0))
 
-    vcart = np.zeros((nx, ny, ns, 3))  # velocities in Cartesian coordinates
+    vcart = np.zeros((ns, 3, ny, nx))  # velocities in Cartesian coordinates
 
     # Projection of velocity on RZ-plane
-    vcart[:, :, :, :2] = (poloidal_velocity[:, :, :, None] * mesh.poloidal_basis_vector[:, :, None, :] +
-                          radial_velocity[:, :, :, None] * mesh.radial_basis_vector[:, :, None, :])  # to vector in Cartesian
+    vcart[:, :2] = (poloidal_velocity[:, None] * mesh.poloidal_basis_vector[None] + radial_velocity[:, None] * mesh.radial_basis_vector[None])
 
     # Obtaining toroidal velocity
-    b = b_field_cartesian[:, :, None, :]
-    bmagn = np.sqrt((b * b).sum(3))
-    vcart[:, :, :, 2] = (parallel_velocity * bmagn - (vcart[:, :, :, 0] * b[:, :, :, 0] + vcart[:, :, :, 1] * b[:, :, :, 1])) / b[:, :, :, 2]
+    b = b_field_cartesian[None]
+    bmagn = np.sqrt((b * b).sum(1))
+    vcart[:, 2] = (parallel_velocity * bmagn - vcart[:, 0] * b[:, 0] - vcart[:, 1] * b[:, 1]) / b[:, 2]
 
     return vcart

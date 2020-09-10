@@ -71,8 +71,8 @@ def load_solps_from_raw_output(simulation_path, debug=False):
 
     mesh = create_mesh_from_geom_data(geom_data_dict)
 
-    ni = mesh.nx
-    nj = mesh.ny
+    ny = mesh.ny  # radial
+    nx = mesh.nx  # poloidal
 
     header_dict, sim_info_dict, mesh_data_dict = load_b2f_file(b2_state_file, debug=debug)
 
@@ -93,15 +93,15 @@ def load_solps_from_raw_output(simulation_path, debug=False):
     sim = SOLPSSimulation(mesh, species_list)
 
     # Load magnetic field
-    sim.set_b_field(geom_data_dict['bb'][:, :, :3])
+    sim.b_field = geom_data_dict['bb'][:3]
     # sim.b_field_cartesian is created authomatically
 
     # Load electron species
-    sim.set_electron_temperature(mesh_data_dict['te'] / elementary_charge)
-    sim.set_electron_density(mesh_data_dict['ne'])
+    sim.electron_temperature = mesh_data_dict['te'] / elementary_charge
+    sim.electron_density = mesh_data_dict['ne']
 
     # Load ion temperature
-    sim.set_ion_temperature(mesh_data_dict['ti'] / elementary_charge)
+    sim.ion_temperature = mesh_data_dict['ti'] / elementary_charge
 
     # Load species density
     species_density = mesh_data_dict['na']
@@ -110,8 +110,8 @@ def load_solps_from_raw_output(simulation_path, debug=False):
     parallel_velocity = mesh_data_dict['ua']
 
     # Load poloidal and radial particle fluxes for velocity calculation
-    poloidal_flux = mesh_data_dict['fna'][:, :, ::2]
-    radial_flux = mesh_data_dict['fna'][:, :, 1::2]
+    poloidal_flux = mesh_data_dict['fna'][::2]
+    radial_flux = mesh_data_dict['fna'][1::2]
 
     # Obtaining velocity from B2 flux
     velocities_cartesian = b2_flux_to_velocity(mesh, species_density, poloidal_flux, radial_flux, parallel_velocity, sim.b_field_cartesian)
@@ -121,48 +121,48 @@ def load_solps_from_raw_output(simulation_path, debug=False):
         # Note EIRENE data grid is slightly smaller than SOLPS grid, for example (98, 38) => (96, 36)
         # Need to pad EIRENE data to fit inside larger B2 array
 
-        neutral_density = np.zeros((ni, nj, len(neutral_indx)))
-        neutral_density[1:-1, 1:-1, :] = eirene.da
-        species_density[:, :, neutral_indx] = neutral_density
+        neutral_density = np.zeros((len(neutral_indx), ny, nx))
+        neutral_density[:, 1:-1, 1:-1] = eirene.da
+        species_density[neutral_indx] = neutral_density
 
         # Obtaining neutral atom velocity from EIRENE flux
         # Note that if the output for fluxes was turned off, eirene.ppa and eirene.rpa are all zeros
         if np.any(eirene.ppa) or np.any(eirene.rpa):
-            neutral_poloidal_flux = np.zeros((ni, nj, len(neutral_indx)))
-            neutral_poloidal_flux[1:-1, 1:-1, :] = eirene.ppa
+            neutral_poloidal_flux = np.zeros((len(neutral_indx), ny, nx))
+            neutral_poloidal_flux[:, 1:-1, 1:-1] = eirene.ppa
 
-            neutral_radial_flux = np.zeros((ni, nj, len(neutral_indx)))
-            neutral_radial_flux[1:-1, 1:-1, :] = eirene.rpa
+            neutral_radial_flux = np.zeros((len(neutral_indx), ny, nx))
+            neutral_radial_flux[:, 1:-1, 1:-1] = eirene.rpa
 
-            neutral_parallel_velocity = np.zeros((ni, nj, len(neutral_indx)))  # must be zero outside EIRENE grid
-            neutral_parallel_velocity[1:-1, 1:-1, :] = parallel_velocity[1:-1, 1:-1, neutral_indx]
+            neutral_parallel_velocity = np.zeros((len(neutral_indx), ny, nx))  # must be zero outside EIRENE grid
+            neutral_parallel_velocity[:, 1:-1, 1:-1] = parallel_velocity[neutral_indx, 1:-1, 1:-1]
 
             neutral_velocities_cartesian = eirene_flux_to_velocity(mesh, neutral_density, neutral_poloidal_flux, neutral_radial_flux,
                                                                    neutral_parallel_velocity, sim.b_field_cartesian)
 
-            velocities_cartesian[:, :, neutral_indx, :] = neutral_velocities_cartesian
+            velocities_cartesian[neutral_indx] = neutral_velocities_cartesian
 
         # Obtaining neutral temperatures
-        ta = np.zeros((ni, nj, eirene.ta.shape[2]))
-        ta[1:-1, 1:-1, :] = eirene.ta
+        ta = np.zeros((eirene.ta.shape[0], ny, nx))
+        ta[:, 1:-1, 1:-1] = eirene.ta
         # extrapolating
         for i in (0, -1):
-            ta[i, 1:-1, :] = eirene.ta[i, :, :]
-            ta[1:-1, i, :] = eirene.ta[:, i, :]
+            ta[:, i, 1:-1] = eirene.ta[:, i, :]
+            ta[:, 1:-1, i] = eirene.ta[:, :, i]
         for i, j in ((0, 0), (0, -1), (-1, 0), (-1, -1)):
-            ta[i, j, :] = eirene.ta[i, j, :]
-        sim.set_neutral_temperature(ta / elementary_charge)
+            ta[:, i, j] = eirene.ta[:, i, j]
+        sim.neutral_temperature = ta / elementary_charge
 
         # Obtaining total radiation
-        eradt_raw_data = eirene.eradt.sum(2)
-        total_radiation = np.zeros((ni, nj))
+        eradt_raw_data = eirene.eradt.sum(0)
+        total_radiation = np.zeros((ny, nx))
         total_radiation[1:-1, 1:-1] = eradt_raw_data
-        sim.set_total_radiation(total_radiation)
+        sim.total_radiation = total_radiation
 
         sim.eirene_simulation = eirene
 
-    sim.set_species_density(species_density)
-    sim.set_velocities_cartesian(velocities_cartesian)  # this also updates sim.velocities
+    sim.species_density = species_density
+    sim.velocities_cartesian = velocities_cartesian  # this also updates sim.velocities
 
     return sim
 
@@ -176,20 +176,20 @@ def create_mesh_from_geom_data(geom_data):
     neighbix = np.zeros(r.shape, dtype=np.int)
     neighbiy = np.zeros(r.shape, dtype=np.int)
 
-    neighbix[:, :, 0] = geom_data['leftix'].astype(np.int)  # poloidal prev.
-    neighbix[:, :, 1] = geom_data['bottomix'].astype(np.int)  # radial prev.
-    neighbix[:, :, 2] = geom_data['rightix'].astype(np.int)  # poloidal next
-    neighbix[:, :, 3] = geom_data['topix'].astype(np.int)  # radial next
+    neighbix[0] = geom_data['leftix'].astype(np.int)  # poloidal prev.
+    neighbix[1] = geom_data['bottomix'].astype(np.int)  # radial prev.
+    neighbix[2] = geom_data['rightix'].astype(np.int)  # poloidal next
+    neighbix[3] = geom_data['topix'].astype(np.int)  # radial next
 
-    neighbiy[:, :, 0] = geom_data['leftiy'].astype(np.int)
-    neighbiy[:, :, 1] = geom_data['bottomiy'].astype(np.int)
-    neighbiy[:, :, 2] = geom_data['rightiy'].astype(np.int)
-    neighbiy[:, :, 3] = geom_data['topiy'].astype(np.int)
+    neighbiy[0] = geom_data['leftiy'].astype(np.int)
+    neighbiy[1] = geom_data['bottomiy'].astype(np.int)
+    neighbiy[2] = geom_data['rightiy'].astype(np.int)
+    neighbiy[3] = geom_data['topiy'].astype(np.int)
 
     # In SOLPS cell indexing starts with -1 (guarding cell), but in SOLPSMesh -1 means no neighbour.
     neighbix += 1
     neighbiy += 1
-    neighbix[neighbix == r.shape[0]] = -1
+    neighbix[neighbix == r.shape[2]] = -1
     neighbiy[neighbiy == r.shape[1]] = -1
 
     mesh = SOLPSMesh(r, z, vol, neighbix, neighbiy)
