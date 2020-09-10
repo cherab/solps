@@ -17,7 +17,7 @@
 # See the Licence for the specific language governing permissions and limitations
 # under the Licence.
 
-from .solps_3d_functions import SOLPSFunction3D, SOLPSVectorFunction3D
+from .solps_2d_functions import SOLPSFunction2D, SOLPSVectorFunction2D
 from .mesh_geometry import SOLPSMesh
 from .solps_plasma import SOLPSSimulation
 from .formats import load_solps_from_raw_output, load_solps_from_mdsplus, load_solps_from_balance

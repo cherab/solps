@@ -23,23 +23,20 @@ import matplotlib.pyplot as plt
 from scipy.constants import atomic_mass, electron_mass
 
 # Raysect imports
-from raysect.core.math.function.float import Discrete2DMesh
 from raysect.core import translate, Point3D, Vector3D, Node, AffineMatrix3D
 from raysect.primitive import Cylinder
 from raysect.optical import Spectrum
 
 # CHERAB core imports
 from cherab.core import Plasma, Species, Maxwellian
-from cherab.core.math.mappers import AxisymmetricMapper
+from cherab.core.math.mappers import AxisymmetricMapper, VectorAxisymmetricMapper
 from cherab.core.atomic.elements import lookup_isotope, lookup_element
 
 # This SOLPS package imports
 from cherab.solps.eirene import Eirene
-from .solps_3d_functions import SOLPSFunction3D, SOLPSVectorFunction3D
+from .solps_2d_functions import SOLPSFunction2D, SOLPSVectorFunction2D
 from .mesh_geometry import SOLPSMesh
 
-
-# TODO: Implement *_as_f2d() and *_as_f3d() interpolators for plasma parameters
 
 class SOLPSSimulation:
 
@@ -52,24 +49,44 @@ class SOLPSSimulation:
             raise ValueError('Argument "mesh" must be a SOLPSMesh instance.')
 
         # Make Mesh Interpolator function for inside/outside mesh test.
-        inside_outside_data = np.ones(mesh.num_triangles)
-        inside_outside = AxisymmetricMapper(Discrete2DMesh(mesh.vertex_coordinates, mesh.triangles, inside_outside_data, limit=False))
-        self._inside_mesh = inside_outside
+        inside_outside_data = np.ones((self._mesh.ny, self._mesh.nx))
+        self._inside_mesh = SOLPSFunction2D(mesh.vertex_coordinates, mesh.triangles, mesh.triangle_to_grid_map, inside_outside_data)
+
+        # Creating a sample SOLPSVectorFunction2D for KDtree to use later
+        sample_vector = np.ones((3, self._mesh.ny, self._mesh.nx))
+        self._sample_vector_f2d = SOLPSVectorFunction2D(mesh.vertex_coordinates, mesh.triangles, mesh.triangle_to_grid_map, sample_vector)
 
         if not len(species_list):
             raise ValueError('Argument "species_list" must contain at least one species.')
         self._species_list = tuple(species_list)  # adding additional species is not allowed
+        self._neutral_list = tuple([sp for sp in self._species_list if sp[1] == 0])
 
         self._electron_temperature = None
+        self._electron_temperature_f2d = None
+        self._electron_temperature_f3d = None
         self._electron_density = None
+        self._electron_density_f2d = None
+        self._electron_density_f3d = None
         self._ion_temperature = None
+        self._ion_temperature_f2d = None
+        self._ion_temperature_f3d = None
         self._neutral_temperature = None
+        self._neutral_temperature_f2d = None
+        self._neutral_temperature_f3d = None
         self._species_density = None
+        self._species_density_f2d = None
+        self._species_density_f3d = None
         self._velocities = None
         self._velocities_cartesian = None
+        self._velocities_cartesian_f2d = None
+        self._velocities_cartesian_f3d = None
         self._total_radiation = None
-        self._b_field_vectors = None
-        self._b_field_vectors_cartesian = None
+        self._total_radiation_f2d = None
+        self._total_radiation_f3d = None
+        self._b_field = None
+        self._b_field_cartesian = None
+        self._b_field_cartesian_f2d = None
+        self._b_field_cartesian_f3d = None
         self._eirene_model = None  # what is this for?
         self._b2_model = None  # what is this for?
         self._eirene = None  # do we need this in SOLPSSimulation?
@@ -98,11 +115,28 @@ class SOLPSSimulation:
         """
         return self._electron_temperature
 
+    @property
+    def electron_temperature_f2d(self):
+        """
+        Simulated electron temperatures at each mesh cell.
+        :return:
+        """
+        return self._electron_temperature_f2d
+
+    @property
+    def electron_temperature_f3d(self):
+        """
+        Simulated electron temperatures at each mesh cell.
+        :return:
+        """
+        return self._electron_temperature_f3d
+
     @electron_temperature.setter
     def electron_temperature(self, value):
         _check_array("electron_temperature", value, (self.mesh.ny, self.mesh.nx))
-
         self._electron_temperature = value
+        self._electron_temperature_f2d = SOLPSFunction2D.instance(self._inside_mesh, value)
+        self._electron_temperature_f3d = AxisymmetricMapper(self._electron_temperature_f2d)
 
     @property
     def ion_temperature(self):
@@ -112,11 +146,28 @@ class SOLPSSimulation:
         """
         return self._ion_temperature
 
+    @property
+    def ion_temperature_f2d(self):
+        """
+        Simulated ion temperatures at each mesh cell.
+        :return:
+        """
+        return self._ion_temperature_f2d
+
+    @property
+    def ion_temperature_f3d(self):
+        """
+        Simulated ion temperatures at each mesh cell.
+        :return:
+        """
+        return self._ion_temperature_f3d
+
     @ion_temperature.setter
     def ion_temperature(self, value):
         _check_array("ion_temperature", value, (self.mesh.ny, self.mesh.nx))
-
         self._ion_temperature = value
+        self._ion_temperature_f2d = SOLPSFunction2D.instance(self._inside_mesh, value)
+        self._ion_temperature_f3d = AxisymmetricMapper(self._ion_temperature_f2d)
 
     @property
     def neutral_temperature(self):
@@ -126,12 +177,33 @@ class SOLPSSimulation:
         """
         return self._neutral_temperature
 
+    @property
+    def neutral_temperature_f2d(self):
+        """
+        Array of neutral atom (effective) temperature at each mesh cell.
+        :return:
+        """
+        return self._neutral_temperature_f2d
+
+    @property
+    def neutral_temperature_f3d(self):
+        """
+        Array of neutral atom (effective) temperature at each mesh cell.
+        :return:
+        """
+        return self._neutral_temperature_f3d
+
     @neutral_temperature.setter
     def neutral_temperature(self, value):
-        num_neutrals = len([sp for sp in self.species_list if sp[1] == 0])
-        _check_array("neutral_temperature", value, (num_neutrals, self.mesh.ny, self.mesh.nx))
-
+        _check_array("neutral_temperature", value, (len(self._neutral_list), self.mesh.ny, self.mesh.nx))
         self._neutral_temperature = value
+        self._neutral_temperature_f2d = {}
+        self._neutral_temperature_f3d = {}
+        for k, sp in enumerate(self._neutral_list):
+            self._neutral_temperature_f2d[k] = SOLPSFunction2D.instance(self._inside_mesh, value[k])
+            self._neutral_temperature_f2d[sp] = self._neutral_temperature_f2d[k]
+            self._neutral_temperature_f3d[k] = AxisymmetricMapper(self._neutral_temperature_f2d[k])
+            self._neutral_temperature_f3d[sp] = self._neutral_temperature_f3d[k]
 
     @property
     def electron_density(self):
@@ -141,11 +213,28 @@ class SOLPSSimulation:
         """
         return self._electron_density
 
+    @property
+    def electron_density_f2d(self):
+        """
+        Simulated electron densities at each mesh cell.
+        :return:
+        """
+        return self._electron_density_f2d
+
+    @property
+    def electron_density_f3d(self):
+        """
+        Simulated electron densities at each mesh cell.
+        :return:
+        """
+        return self._electron_density_f3d
+
     @electron_density.setter
     def electron_density(self, value):
         _check_array("electron_density", value, (self.mesh.ny, self.mesh.nx))
-
         self._electron_density = value
+        self._electron_density_f2d = SOLPSFunction2D.instance(self._inside_mesh, value)
+        self._electron_density_f3d = AxisymmetricMapper(self._electron_density_f2d)
 
     @property
     def species_density(self):
@@ -155,11 +244,33 @@ class SOLPSSimulation:
         """
         return self._species_density
 
+    @property
+    def species_density_f2d(self):
+        """
+        Array of species densities at each mesh cell.
+        :return:
+        """
+        return self._species_density_f2d
+
+    @property
+    def species_density_f3d(self):
+        """
+        Array of species densities at each mesh cell.
+        :return:
+        """
+        return self._species_density_f3d
+
     @species_density.setter
     def species_density(self, value):
-        _check_array("species_density", value, (len(self.species_list), self.mesh.ny, self.mesh.nx))
-
+        _check_array("species_density", value, (len(self._species_list), self.mesh.ny, self.mesh.nx))
         self._species_density = value
+        self._species_density_f2d = {}
+        self._species_density_f3d = {}
+        for k, sp in enumerate(self._species_list):
+            self._species_density_f2d[k] = SOLPSFunction2D.instance(self._inside_mesh, value[k])
+            self._species_density_f2d[sp] = self._species_density_f2d[k]
+            self._species_density_f3d[k] = AxisymmetricMapper(self._species_density_f2d[k])
+            self._species_density_f3d[sp] = self._species_density_f3d[k]
 
     @property
     def velocities(self):
@@ -179,8 +290,15 @@ class SOLPSSimulation:
         for k in range(value.shape[0]):
             velocities_cartesian[k, :2] = self.mesh.to_cartesian(value[k, :2])
 
-        self._velocities_cartesian = velocities_cartesian
         self._velocities = value
+        self._velocities_cartesian = velocities_cartesian
+        self._velocities_cartesian_f2d = {}
+        self._velocities_cartesian_f3d = {}
+        for k, sp in enumerate(self._species_list):
+            self._velocities_cartesian_f2d[k] = SOLPSVectorFunction2D.instance(self._sample_vector_f2d, velocities_cartesian[k])
+            self._velocities_cartesian_f2d[sp] = self._velocities_cartesian_f2d[k]
+            self._velocities_cartesian_f3d[k] = VectorAxisymmetricMapper(self._velocities_cartesian_f2d[k])
+            self._velocities_cartesian_f3d[sp] = self._velocities_cartesian_f3d[k]
 
     @property
     def velocities_cartesian(self):
@@ -189,6 +307,22 @@ class SOLPSSimulation:
         :return:
         """
         return self._velocities_cartesian
+
+    @property
+    def velocities_cartesian_f2d(self):
+        """
+        Velocities in Cartesian (v_r, v_z, v_toroidal) coordinates for each species densities at each mesh cell.
+        :return:
+        """
+        return self._velocities_cartesian_f2d
+
+    @property
+    def velocities_cartesian_f3d(self):
+        """
+        Velocities in Cartesian (v_r, v_z, v_toroidal) coordinates for each species densities at each mesh cell.
+        :return:
+        """
+        return self._velocities_cartesian_f3d
 
     @velocities_cartesian.setter
     def velocities_cartesian(self, value):
@@ -200,18 +334,29 @@ class SOLPSSimulation:
         for k in range(value.shape[0]):
             velocities[k, :2] = self.mesh.to_poloidal(value[k, :2])
 
-        self._velocities = value
         self._velocities_cartesian = value
+        self._velocities = velocities
+        self._velocities_cartesian_f2d = {}
+        self._velocities_cartesian_f3d = {}
+        for k, sp in enumerate(self._species_list):
+            self._velocities_cartesian_f2d[k] = SOLPSVectorFunction2D.instance(self._sample_vector_f2d, value[k])
+            self._velocities_cartesian_f2d[sp] = self._velocities_cartesian_f2d[k]
+            self._velocities_cartesian_f3d[k] = VectorAxisymmetricMapper(self._velocities_cartesian_f2d[k])
+            self._velocities_cartesian_f3d[sp] = self._velocities_cartesian_f3d[k]
+
+    @property
+    def inside_mesh(self):
+        """
+        Function2D for testing if point p is inside the simulation mesh.
+        """
+        return self._inside_mesh
 
     @property
     def inside_volume_mesh(self):
         """
         Function3D for testing if point p is inside the simulation mesh.
         """
-        if self._inside_mesh is None:
-            raise RuntimeError("Inside mesh test not available for this simulation.")
-        else:
-            return self._inside_mesh
+        return AxisymmetricMapper(self._inside_mesh)
 
     @property
     def total_radiation(self):
@@ -227,29 +372,40 @@ class SOLPSSimulation:
         else:
             return self._total_radiation
 
-    @total_radiation.setter
-    def total_radiation(self, value):
-        _check_array("total_radiation", value, (self.mesh.ny, self.mesh.nx))
-
-        self._total_radiation = value
-
-    # TODO: decide is this a 2D or 3D interface?
     @property
-    def total_radiation_volume(self):
+    def total_radiation_f2d(self):
         """
-        Total radiation volume.
+        Total radiation
 
         This is not calculated from the CHERAB emission models, instead it comes from the SOLPS output data.
         Is calculated from the sum of all integrated line emission and all Bremmstrahlung. The signals used are 'RQRAD'
         and 'RQBRM'. Final output is in W/str?
-
-        :returns: Function3D
         """
+        if self._total_radiation_f2d is None:
+            raise RuntimeError("Total radiation not available for this simulation.")
+        else:
+            return self._total_radiation_f2d
 
-        mapped_radiation_data = _map_data_onto_triangles(self._total_rad)
-        radiation_mesh_2d = Discrete2DMesh(self.mesh.vertex_coordinates, self.mesh.triangles, mapped_radiation_data, limit=False)
-        # return AxisymmetricMapper(radiation_mesh_2d)
-        return radiation_mesh_2d
+    @property
+    def total_radiation_f3d(self):
+        """
+        Total radiation
+
+        This is not calculated from the CHERAB emission models, instead it comes from the SOLPS output data.
+        Is calculated from the sum of all integrated line emission and all Bremmstrahlung. The signals used are 'RQRAD'
+        and 'RQBRM'. Final output is in W/str?
+        """
+        if self._total_radiation_f3d is None:
+            raise RuntimeError("Total radiation not available for this simulation.")
+        else:
+            return self._total_radiation_f3d
+
+    @total_radiation.setter
+    def total_radiation(self, value):
+        _check_array("total_radiation", value, (self.mesh.ny, self.mesh.nx))
+        self._total_radiation = value
+        self._total_radiation_f2d = SOLPSFunction2D.instance(self._inside_mesh, value)
+        self._total_radiation_f3d = AxisymmetricMapper(self._total_radiation_f2d)
 
     @property
     def b_field(self):
@@ -272,6 +428,8 @@ class SOLPSSimulation:
 
         self._b_field_cartesian = b_field_cartesian
         self._b_field = value
+        self._b_field_cartesian_f2d = SOLPSVectorFunction2D.instance(self._sample_vector_f2d, b_field_cartesian)
+        self._b_field_cartesian_f3d = VectorAxisymmetricMapper(self._b_field_cartesian_f2d)
 
     @property
     def b_field_cartesian(self):
@@ -282,6 +440,26 @@ class SOLPSSimulation:
             raise RuntimeError("Magnetic field not available for this simulation.")
         else:
             return self._b_field_cartesian
+
+    @property
+    def b_field_cartesian_f2d(self):
+        """
+        Magnetic B field at each mesh cell in Cartesian coordinates (B_r, B_z, B_toroidal).
+        """
+        if self._b_field_cartesian_f2d is None:
+            raise RuntimeError("Magnetic field not available for this simulation.")
+        else:
+            return self._b_field_cartesian_f2d
+
+    @property
+    def b_field_cartesian_f3d(self):
+        """
+        Magnetic B field at each mesh cell in Cartesian coordinates (B_r, B_z, B_toroidal).
+        """
+        if self._b_field_cartesian_f3d is None:
+            raise RuntimeError("Magnetic field not available for this simulation.")
+        else:
+            return self._b_field_cartesian_f3d
 
     @b_field_cartesian.setter
     def b_field_cartesian(self, value):
@@ -294,6 +472,8 @@ class SOLPSSimulation:
 
         self._b_field = b_field
         self._b_field_cartesian = value
+        self._b_field_cartesian_f2d = SOLPSVectorFunction2D.instance(self._sample_vector_f2d, value)
+        self._b_field_cartesian_f3d = VectorAxisymmetricMapper(self._b_field_cartesian_f2d)
 
     @property
     def eirene_simulation(self):
@@ -317,17 +497,16 @@ class SOLPSSimulation:
     def __getstate__(self):
         state = {
             'mesh': self._mesh.__getstate__(),
+            'species_list': self._species_list,
+            'inside_mesh': self._inside_mesh,
+            'sample_vector_f2d': self._sample_vector_f2d,
             'electron_temperature': self._electron_temperature,
             'ion_temperature': self._ion_temperature,
             'neutral_temperature': self._neutral_temperature,
             'electron_density': self._electron_density,
-            'species_list': self._species_list,
             'species_density': self._species_density,
-            'velocities': self._velocities,
             'velocities_cartesian': self._velocities_cartesian,
-            'inside_mesh': self._inside_mesh,
             'total_radiation': self._total_radiation,
-            'b_field': self._b_field,
             'b_field_cartesian': self._b_field_cartesian,
             'eirene_model': self._eirene_model,
             'b2_model': self._b2_model,
@@ -337,18 +516,52 @@ class SOLPSSimulation:
 
     def __setstate__(self, state):
         self._mesh = SOLPSMesh(**state['mesh'])
-        self._electron_temperature = state['electron_temperature']
-        self._ion_temperature = state['ion_temperature']
-        self._neutral_temperature = state['neutral_temperature']
-        self._electron_density = state['electron_density']
         self._species_list = state['species_list']
-        self._species_density = state['species_density']
-        self._velocities = state['velocities']
-        self._velocities_cartesian = state['velocities_cartesian']
+        self._neutral_list = tuple([sp for sp in self._species_list if sp[1] == 0])
         self._inside_mesh = state['inside_mesh']
-        self._total_radiation = state['total_radiation']
-        self._b_field = state['b_field']
-        self._b_field_cartesian = state['b_field_cartesian']
+        self._sample_vector_f2d = state['sample_vector_f2d']
+        self._electron_temperature = None
+        self._electron_temperature_f2d = None
+        self._electron_temperature_f3d = None
+        self._electron_density = None
+        self._electron_density_f2d = None
+        self._electron_density_f3d = None
+        self._ion_temperature = None
+        self._ion_temperature_f2d = None
+        self._ion_temperature_f3d = None
+        self._neutral_temperature = None
+        self._neutral_temperature_f2d = None
+        self._neutral_temperature_f3d = None
+        self._species_density = None
+        self._species_density_f2d = None
+        self._species_density_f3d = None
+        self._velocities = None
+        self._velocities_cartesian = None
+        self._velocities_cartesian_f2d = None
+        self._velocities_cartesian_f3d = None
+        self._total_radiation = None
+        self._total_radiation_f2d = None
+        self._total_radiation_f3d = None
+        self._b_field = None
+        self._b_field_cartesian = None
+        self._b_field_cartesian_f2d = None
+        self._b_field_cartesian_f3d = None
+        if state['electron_temperature'] is not None:
+            self.electron_temperature = state['electron_temperature']  # will create _f2d() and _f3d()
+        if state['ion_temperature'] is not None:
+            self.ion_temperature = state['ion_temperature']
+        if state['neutral_temperature'] is not None:
+            self.neutral_temperature = state['neutral_temperature']
+        if state['electron_density'] is not None:
+            self.electron_density = state['electron_density']
+        if state['species_density'] is not None:
+            self.species_density = state['species_density']
+        if state['velocities_cartesian'] is not None:
+            self.velocities_cartesian = state['velocities_cartesian']
+        if state['total_radiation'] is not None:
+            self.total_radiation = state['total_radiation']
+        if state['b_field_cartesian'] is not None:
+            self.b_field_cartesian = state['b_field_cartesian']
         self._eirene_model = state['eirene_model']
         self._b2_model = state['b2_model']
         self._eirene = state['eirene']
@@ -512,31 +725,19 @@ class SOLPSSimulation:
         plasma.geometry = Cylinder(radius, height)
         plasma.geometry_transform = translate(0, 0, mesh.mesh_extent['minz'])
 
-        tri_index_lookup = self.mesh.triangle_index_lookup
-        tri_to_grid = self.mesh.triangle_to_grid_map
-
         try:
-            plasma.b_field = SOLPSVectorFunction3D(tri_index_lookup, tri_to_grid, self.b_field_cartesian)
+            plasma.b_field = self.b_field_cartesian_f3d
         except RuntimeError:
             print('Warning! No magnetic field data available for this simulation.')
 
         # Create electron species
-        triangle_data = _map_data_onto_triangles(self.electron_temperature)
-        electron_te_interp = Discrete2DMesh(mesh.vertex_coordinates, mesh.triangles, triangle_data, limit=False)
-        electron_temp = AxisymmetricMapper(electron_te_interp)
-        triangle_data = _map_data_onto_triangles(self.electron_density)
-        electron_dens = AxisymmetricMapper(Discrete2DMesh.instance(electron_te_interp, triangle_data))
         electron_velocity = lambda x, y, z: Vector3D(0, 0, 0)
-        plasma.electron_distribution = Maxwellian(electron_dens, electron_temp, electron_velocity, electron_mass)
-
-        # Ion temperature
-        triangle_data = _map_data_onto_triangles(self.ion_temperature)
-        ion_temp = AxisymmetricMapper(Discrete2DMesh.instance(electron_te_interp, triangle_data))
-
-        if self.velocities_cartesian is None:
+        plasma.electron_distribution = Maxwellian(self.electron_density_f3d, self.electron_temperature_f3d, electron_velocity, electron_mass)
+ 
+        if self.velocities_cartesian_f3d is None:
             print('Warning! No velocity field data available for this simulation.')
 
-        if self.neutral_temperature is None:
+        if self.neutral_temperature_f3d is None:
             print('Warning! No neutral atom temperature data available for this simulation.')
 
         neutral_i = 0  # neutrals count
@@ -549,45 +750,24 @@ class SOLPSSimulation:
 
             charge = sp[1]
 
-            triangle_data = _map_data_onto_triangles(self.species_density[k])
-            dens = AxisymmetricMapper(Discrete2DMesh.instance(electron_te_interp, triangle_data))
-
-            # dens = SOLPSFunction3D(tri_index_lookup, tri_to_grid, self.species_density[k])
-
             # Create the velocity vector lookup function
             if self.velocities_cartesian is not None:
-                velocity = SOLPSVectorFunction3D(tri_index_lookup, tri_to_grid, self.velocities_cartesian[k])
+                velocity = self.velocities_cartesian_f3d[k]
             else:
                 velocity = lambda x, y, z: Vector3D(0, 0, 0)
 
             if charge or self.neutral_temperature is None:  # ions or neutral atoms (neutral temperature is not available)
-                distribution = Maxwellian(dens, ion_temp, velocity, species_type.atomic_weight * atomic_mass)
+                distribution = Maxwellian(self.species_density_f3d[k], self.ion_temperature_f3d, velocity,
+                                          species_type.atomic_weight * atomic_mass)
 
             else:  # neutral atoms with neutral temperature
-                triangle_data = _map_data_onto_triangles(self.neutral_temperature[neutral_i])
-                neutral_temp = AxisymmetricMapper(Discrete2DMesh.instance(electron_te_interp, triangle_data))
-                distribution = Maxwellian(dens, neutral_temp, velocity, species_type.atomic_weight * atomic_mass)
+                distribution = Maxwellian(self.species_density_f3d[k], self._neutral_temperature_f3d[neutral_i], velocity,
+                                          species_type.atomic_weight * atomic_mass)
                 neutral_i += 1
 
             plasma.composition.add(Species(species_type, charge, distribution))
 
         return plasma
-
-
-def _map_data_onto_triangles(solps_dataset):
-    """
-    Reshape a SOLPS data array so that it matches the triangles in the SOLPS mesh.
-
-    :param ndarray solps_dataset: Given SOLPS dataset, typically of shape (98 x 32).
-    :return: New 1D ndarray with shape (98*32*2)
-    """
-
-    triangle_data = np.zeros(solps_dataset.size * 2, dtype=np.float64)
-
-    triangle_data[::2] = solps_dataset.flatten()
-    triangle_data[1::2] = triangle_data[::2]
-
-    return triangle_data
 
 
 def _check_array(name, value, shape):

@@ -24,10 +24,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
-from raysect.core.math.function.float import Discrete2DMesh
-
-# INFINITY = 1E99
-
 
 class SOLPSMesh:
     """
@@ -148,9 +144,6 @@ class SOLPSMesh:
         self._triangle_to_grid_map[::2, 1] = xm.flatten()
         self._triangle_to_grid_map[1::2] = self._triangle_to_grid_map[::2]
 
-        tri_indices = np.arange(self._num_tris, dtype=np.int32)
-        self._tri_index_loopup = Discrete2DMesh(self._vertex_coords, self._triangles, tri_indices)
-
     @property
     def nx(self):
         """Number of grid cells in the poloidal direction."""
@@ -270,16 +263,16 @@ class SOLPSMesh:
         """
         return self._triangle_to_grid_map
 
-    @property
-    def triangle_index_lookup(self):
-        """
-        Discrete2DMesh instance that looks up a triangle index at any 2D point.
+    # @property
+    # def triangle_index_lookup(self):
+    #     """
+    #     Discrete2DMesh instance that looks up a triangle index at any 2D point.
 
-        Useful for mapping from a 2D point -> triangle cell -> parent SOLPS mesh cell
+    #     Useful for mapping from a 2D point -> triangle cell -> parent SOLPS mesh cell
 
-        :return: Discrete2DMesh instance
-        """
-        return self._tri_index_loopup
+    #     :return: Discrete2DMesh instance
+    #     """
+    #     return self._tri_index_loopup
 
     def __getstate__(self):
         state = {

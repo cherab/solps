@@ -35,7 +35,7 @@ cdef class SOLPSTotalRadiatedPower(InhomogeneousVolumeEmitter):
 
         self.vertical_offset = vertical_offset
         self.inside_simulation = solps_simulation.inside_volume_mesh
-        self.total_rad = solps_simulation.total_radiation_volume
+        self.total_rad = solps_simulation.total_radiation_f3d
 
     def __call__(self, x, y , z):
 
