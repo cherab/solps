@@ -111,6 +111,7 @@ class SOLPSSimulation:
     def electron_temperature(self):
         """
         Simulated electron temperatures at each mesh cell.
+        Array of shape (ny, nx).
         :return:
         """
         return self._electron_temperature
@@ -118,7 +119,8 @@ class SOLPSSimulation:
     @property
     def electron_temperature_f2d(self):
         """
-        Simulated electron temperatures at each mesh cell.
+        Function2D interpolator for electron temperature.
+        Returns electron temperature at a given point (R, Z).
         :return:
         """
         return self._electron_temperature_f2d
@@ -126,14 +128,16 @@ class SOLPSSimulation:
     @property
     def electron_temperature_f3d(self):
         """
-        Simulated electron temperatures at each mesh cell.
+        Function3D interpolator for electron temperature.
+        Returns electron temperature at a given point (x, y, z).
         :return:
         """
         return self._electron_temperature_f3d
 
     @electron_temperature.setter
     def electron_temperature(self, value):
-        _check_array("electron_temperature", value, (self.mesh.ny, self.mesh.nx))
+        value = np.array(value, dtype=np.float64, copy=False)
+        _check_shape("electron_temperature", value, (self.mesh.ny, self.mesh.nx))
         self._electron_temperature = value
         self._electron_temperature_f2d = SOLPSFunction2D.instance(self._inside_mesh, value)
         self._electron_temperature_f3d = AxisymmetricMapper(self._electron_temperature_f2d)
@@ -142,6 +146,7 @@ class SOLPSSimulation:
     def ion_temperature(self):
         """
         Simulated ion temperatures at each mesh cell.
+        Array of shape (ny, nx).
         :return:
         """
         return self._ion_temperature
@@ -149,7 +154,8 @@ class SOLPSSimulation:
     @property
     def ion_temperature_f2d(self):
         """
-        Simulated ion temperatures at each mesh cell.
+        Function2D interpolator for ion temperature.
+        Returns ion temperature at a given point (R, Z).
         :return:
         """
         return self._ion_temperature_f2d
@@ -157,14 +163,16 @@ class SOLPSSimulation:
     @property
     def ion_temperature_f3d(self):
         """
-        Simulated ion temperatures at each mesh cell.
+        Function3D interpolator for ion temperature.
+        Returns ion temperature at a given point (x, y, z).
         :return:
         """
         return self._ion_temperature_f3d
 
     @ion_temperature.setter
     def ion_temperature(self, value):
-        _check_array("ion_temperature", value, (self.mesh.ny, self.mesh.nx))
+        value = np.array(value, dtype=np.float64, copy=False)
+        _check_shape("ion_temperature", value, (self.mesh.ny, self.mesh.nx))
         self._ion_temperature = value
         self._ion_temperature_f2d = SOLPSFunction2D.instance(self._inside_mesh, value)
         self._ion_temperature_f3d = AxisymmetricMapper(self._ion_temperature_f2d)
@@ -172,7 +180,8 @@ class SOLPSSimulation:
     @property
     def neutral_temperature(self):
         """
-        Array of neutral atom (effective) temperature at each mesh cell.
+        Simulated neutral atom (effective) temperatures at each mesh cell.
+        Array of shape (na, ny, nx).
         :return:
         """
         return self._neutral_temperature
@@ -180,7 +189,10 @@ class SOLPSSimulation:
     @property
     def neutral_temperature_f2d(self):
         """
-        Array of neutral atom (effective) temperature at each mesh cell.
+        Dictionary of Function2D interpolators for neutral atom (effective) temperatures.
+        Accessed by neutral atom index or neutral_list elements.
+        E.g., neutral_temperature_f2d[0] or neutral_temperature_f2d[('deuterium', 0))].
+        Each entry returns neutral atom (effective) temperature at a given point (R, Z).
         :return:
         """
         return self._neutral_temperature_f2d
@@ -188,14 +200,18 @@ class SOLPSSimulation:
     @property
     def neutral_temperature_f3d(self):
         """
-        Array of neutral atom (effective) temperature at each mesh cell.
+        Dictionary of Function3D interpolators for neutral atom (effective) temperatures.
+        Accessed by neutral atom index or neutral_list elements.
+        E.g., neutral_temperature_f3d[0] or neutral_temperature_f3d[('deuterium', 0))].
+        Each entry returns neutral atom (effective) temperature at a given point (x, y, z).
         :return:
         """
         return self._neutral_temperature_f3d
 
     @neutral_temperature.setter
     def neutral_temperature(self, value):
-        _check_array("neutral_temperature", value, (len(self._neutral_list), self.mesh.ny, self.mesh.nx))
+        value = np.array(value, dtype=np.float64, copy=False)
+        _check_shape("neutral_temperature", value, (len(self._neutral_list), self.mesh.ny, self.mesh.nx))
         self._neutral_temperature = value
         self._neutral_temperature_f2d = {}
         self._neutral_temperature_f3d = {}
@@ -209,6 +225,7 @@ class SOLPSSimulation:
     def electron_density(self):
         """
         Simulated electron densities at each mesh cell.
+        Array of shape (ny, nx)
         :return:
         """
         return self._electron_density
@@ -216,7 +233,8 @@ class SOLPSSimulation:
     @property
     def electron_density_f2d(self):
         """
-        Simulated electron densities at each mesh cell.
+        Function2D interpolator for electron density.
+        Returns electron density at a given point (R, Z).
         :return:
         """
         return self._electron_density_f2d
@@ -224,14 +242,16 @@ class SOLPSSimulation:
     @property
     def electron_density_f3d(self):
         """
-        Simulated electron densities at each mesh cell.
+        Function3D interpolator for electron density.
+        Returns electron density at a given point (x, y, z).
         :return:
         """
         return self._electron_density_f3d
 
     @electron_density.setter
     def electron_density(self, value):
-        _check_array("electron_density", value, (self.mesh.ny, self.mesh.nx))
+        value = np.array(value, dtype=np.float64, copy=False)
+        _check_shape("electron_density", value, (self.mesh.ny, self.mesh.nx))
         self._electron_density = value
         self._electron_density_f2d = SOLPSFunction2D.instance(self._inside_mesh, value)
         self._electron_density_f3d = AxisymmetricMapper(self._electron_density_f2d)
@@ -239,7 +259,8 @@ class SOLPSSimulation:
     @property
     def species_density(self):
         """
-        Array of species densities at each mesh cell.
+        Simulated species densities at each mesh cell.
+        Array of shape (ns, ny, nx).
         :return:
         """
         return self._species_density
@@ -247,7 +268,10 @@ class SOLPSSimulation:
     @property
     def species_density_f2d(self):
         """
-        Array of species densities at each mesh cell.
+        Dictionary of Function2D interpolators for species densities.
+        Accessed by species index or species_list elements.
+        E.g., species_density_f2d[1] or species_density_f2d[('deuterium', 1))].
+        Each entry returns species density at a given point (R, Z).
         :return:
         """
         return self._species_density_f2d
@@ -255,14 +279,18 @@ class SOLPSSimulation:
     @property
     def species_density_f3d(self):
         """
-        Array of species densities at each mesh cell.
+        Dictionary of Function3D interpolators for species densities.
+        Accessed by species index or species_list elements.
+        E.g., species_density_f3d[1] or species_density_f3d[('deuterium', 1))].
+        Each entry returns species density at a given point (x, y, z).
         :return:
         """
         return self._species_density_f3d
 
     @species_density.setter
     def species_density(self, value):
-        _check_array("species_density", value, (len(self._species_list), self.mesh.ny, self.mesh.nx))
+        value = np.array(value, dtype=np.float64, copy=False)
+        _check_shape("species_density", value, (len(self._species_list), self.mesh.ny, self.mesh.nx))
         self._species_density = value
         self._species_density_f2d = {}
         self._species_density_f3d = {}
@@ -275,14 +303,17 @@ class SOLPSSimulation:
     @property
     def velocities(self):
         """
-        Velocities in poloidal coordinates (v_poloidal, v_radial, v_toroidal) for each species densities at each mesh cell.
+        Species velocities in poloidal coordinates (e_pol, e_rad, e_tor) at each mesh cell.
+        Array of shape (ns, 3, ny, nx):
+        [:, 0, :, :] - poloidal, [:, 1, :, :] - radial, [:, 2, :, :] - toroidal.
         :return:
         """
         return self._velocities
 
     @velocities.setter
     def velocities(self, value):
-        _check_array("velocities", value, (len(self.species_list), 3, self.mesh.ny, self.mesh.nx))
+        value = np.array(value, dtype=np.float64, copy=False)
+        _check_shape("velocities", value, (len(self.species_list), 3, self.mesh.ny, self.mesh.nx))
 
         # Converting to cylindrical coordinates
         velocities_cylindrical = np.zeros(value.shape)
@@ -303,7 +334,8 @@ class SOLPSSimulation:
     @property
     def velocities_cylindrical(self):
         """
-        Velocities in Cartesian (v_r, v_phi, v_z) coordinates for each species densities at each mesh cell.
+        Species velocities in cylindrical coordinates (R, phi, Z) at each mesh cell.
+        Array of shape (ns, 3, ny, nx): [:, 0, :, :] - R, [:, 1, :, :] - phi, [:, 2, :, :] - Z.
         :return:
         """
         return self._velocities_cylindrical
@@ -311,7 +343,11 @@ class SOLPSSimulation:
     @property
     def velocities_cylindrical_f2d(self):
         """
-        Velocities in Cartesian (v_r, v_phi, v_z) coordinates for each species densities at each mesh cell.
+        Dictionary of VectorFunction2D interpolators for species velocities
+        in cylindrical coordinates.
+        Accessed by species index or species_list elements.
+        E.g., elocities_cylindrical_f2d[1] or elocities_cylindrical_f2d[('deuterium', 1))].
+        Each entry returns a vector of species velocity at a given point (R, Z).
         :return:
         """
         return self._velocities_cylindrical_f2d
@@ -319,14 +355,19 @@ class SOLPSSimulation:
     @property
     def velocities_cartesian(self):
         """
-        Velocities in Cartesian (v_x, v_y, v_z) coordinates for each species densities at each mesh cell.
+        Dictionary of VectorFunction3D interpolators for species velocities
+        in cartesian coordinates.
+        Accessed by species index or species_list elements.
+        E.g., elocities_cylindrical_f3d[1] or elocities_cylindrical_f3d[('deuterium', 1))].
+        Each entry returns a vector of species velocity at a given point (x, y, z).
         :return:
         """
         return self._velocities_cartesian
 
     @velocities_cylindrical.setter
     def velocities_cylindrical(self, value):
-        _check_array("velocities_cylindrical", value, (len(self.species_list), 3, self.mesh.ny, self.mesh.nx))
+        value = np.array(value, dtype=np.float64, copy=False)
+        _check_shape("velocities_cylindrical", value, (len(self.species_list), 3, self.mesh.ny, self.mesh.nx))
 
         # Converting to poloidal coordinates
         velocities = np.zeros(value.shape)
@@ -361,7 +402,8 @@ class SOLPSSimulation:
     @property
     def total_radiation(self):
         """
-        Total radiation
+        Total radiation at each mesh cell.
+        Array of shape (ny, nx).
 
         This is not calculated from the CHERAB emission models, instead it comes from the SOLPS output data.
         Is calculated from the sum of all integrated line emission and all Bremmstrahlung. The signals used are 'RQRAD'
@@ -375,11 +417,8 @@ class SOLPSSimulation:
     @property
     def total_radiation_f2d(self):
         """
-        Total radiation
-
-        This is not calculated from the CHERAB emission models, instead it comes from the SOLPS output data.
-        Is calculated from the sum of all integrated line emission and all Bremmstrahlung. The signals used are 'RQRAD'
-        and 'RQBRM'. Final output is in W/str?
+        Function2D interpolator for total radiation.
+        Returns total radiation at a given point (R, Z).
         """
         if self._total_radiation_f2d is None:
             raise RuntimeError("Total radiation not available for this simulation.")
@@ -389,11 +428,8 @@ class SOLPSSimulation:
     @property
     def total_radiation_f3d(self):
         """
-        Total radiation
-
-        This is not calculated from the CHERAB emission models, instead it comes from the SOLPS output data.
-        Is calculated from the sum of all integrated line emission and all Bremmstrahlung. The signals used are 'RQRAD'
-        and 'RQBRM'. Final output is in W/str?
+        Function3D interpolator for total radiation.
+        Returns total radiation at a given point (x, y, z).
         """
         if self._total_radiation_f3d is None:
             raise RuntimeError("Total radiation not available for this simulation.")
@@ -402,7 +438,8 @@ class SOLPSSimulation:
 
     @total_radiation.setter
     def total_radiation(self, value):
-        _check_array("total_radiation", value, (self.mesh.ny, self.mesh.nx))
+        value = np.array(value, dtype=np.float64, copy=False)
+        _check_shape("total_radiation", value, (self.mesh.ny, self.mesh.nx))
         self._total_radiation = value
         self._total_radiation_f2d = SOLPSFunction2D.instance(self._inside_mesh, value)
         self._total_radiation_f3d = AxisymmetricMapper(self._total_radiation_f2d)
@@ -410,7 +447,8 @@ class SOLPSSimulation:
     @property
     def b_field(self):
         """
-        Magnetic B field at each mesh cell in mesh cell coordinates (b_poloidal, b_radial, b_toroidal).
+        Magnetic B field in poloidal coordinates (e_pol, e_rad, e_tor) at each mesh cell.
+        Array of shape (3, ny, nx): [0, :, :] - poloidal, [1, :, :] - radial, [2, :, :] - toroidal.
         """
         if self._b_field is None:
             raise RuntimeError("Magnetic field not available for this simulation.")
@@ -419,7 +457,8 @@ class SOLPSSimulation:
 
     @b_field.setter
     def b_field(self, value):
-        _check_array("b_field", value, (3, self.mesh.ny, self.mesh.nx))
+        value = np.array(value, dtype=np.float64, copy=False)
+        _check_shape("b_field", value, (3, self.mesh.ny, self.mesh.nx))
 
         # Converting to cartesian system
         b_field_cylindrical = np.zeros(value.shape)
@@ -434,7 +473,8 @@ class SOLPSSimulation:
     @property
     def b_field_cylindrical(self):
         """
-        Magnetic B field at each mesh cell in Cartesian coordinates (B_r, B_phi, B_z).
+        Magnetic B field in poloidal coordinates (R, phi, Z) at each mesh cell.
+        Array of shape (3, ny, nx): [0, :, :] - R, [1, :, :] - phi, [2, :, :] - Z.
         """
         if self._b_field_cylindrical is None:
             raise RuntimeError("Magnetic field not available for this simulation.")
@@ -444,7 +484,8 @@ class SOLPSSimulation:
     @property
     def b_field_cylindrical_f2d(self):
         """
-        Magnetic B field at each mesh cell in Cartesian coordinates (B_r, B_phi, B_z).
+        VectorFunction2D interpolator for magnetic B field in cylindrical coordinates.
+        Returns a vector of magnetic field at a given point (R, Z).
         """
         if self._b_field_cylindrical_f2d is None:
             raise RuntimeError("Magnetic field not available for this simulation.")
@@ -454,7 +495,8 @@ class SOLPSSimulation:
     @property
     def b_field_cartesian(self):
         """
-        Magnetic B field at each mesh cell in Cartesian coordinates (B_x, B_y, B_z).
+        VectorFunction2D interpolator for magnetic B field in Cartesian coordinates.
+        Returns a vector of magnetic field at a given point (x, y, z).
         """
         if self._b_field_cartesian is None:
             raise RuntimeError("Magnetic field not available for this simulation.")
@@ -463,7 +505,8 @@ class SOLPSSimulation:
 
     @b_field_cylindrical.setter
     def b_field_cylindrical(self, value):
-        _check_array("b_field_cylindrical", value, (3, self.mesh.ny, self.mesh.nx))
+        value = np.array(value, dtype=np.float64, copy=False)
+        _check_shape("b_field_cylindrical", value, (3, self.mesh.ny, self.mesh.nx))
 
         # Converting to poloidal system
         b_field = np.zeros(value.shape)
@@ -737,9 +780,7 @@ class SOLPSSimulation:
         return plasma
 
 
-def _check_array(name, value, shape):
-    if not isinstance(value, np.ndarray):
-        raise ValueError('Attribute "%s" must be a numpy.ndarray' % name)
+def _check_shape(name, value, shape):
     if value.shape != shape:
         raise ValueError('Shape of "%s": %s mismatch the shape of SOLPS grid: %s.' % (name, value.shape, shape))
 
@@ -776,16 +817,21 @@ def b2_flux_to_velocity(mesh, density, poloidal_flux, radial_flux, parallel_velo
     :return: Velocities of atoms in (R, Z, phi) coordinates as a 4-dimensional ndarray of
              shape (num_atoms, 3, mesh.ny, mesh.nx)
     """
+    density = np.array(density, dtype=np.float64, copy=False)
+    poloidal_flux = np.array(poloidal_flux, dtype=np.float64, copy=False)
+    radial_flux = np.array(radial_flux, dtype=np.float64, copy=False)
+    parallel_velocity = np.array(parallel_velocity, dtype=np.float64, copy=False)
+    b_field_cylindrical = np.array(b_field_cylindrical, dtype=np.float64, copy=False)
 
     nx = mesh.nx  # poloidal
     ny = mesh.ny  # radial
     ns = density.shape[0]  # number of species
 
-    _check_array('density', density, (ns, ny, nx))
-    _check_array('poloidal_flux', poloidal_flux, (ns, ny, nx))
-    _check_array('radial_flux', radial_flux, (ns, ny, nx))
-    _check_array('parallel_velocity', parallel_velocity, (ns, ny, nx))
-    _check_array('b_field_cylindrical', b_field_cylindrical, (3, ny, nx))
+    _check_shape('density', density, (ns, ny, nx))
+    _check_shape('poloidal_flux', poloidal_flux, (ns, ny, nx))
+    _check_shape('radial_flux', radial_flux, (ns, ny, nx))
+    _check_shape('parallel_velocity', parallel_velocity, (ns, ny, nx))
+    _check_shape('b_field_cylindrical', b_field_cylindrical, (3, ny, nx))
 
     poloidal_area = mesh.poloidal_area[None]
     radial_area = mesh.radial_area[None]
@@ -827,17 +873,17 @@ def b2_flux_to_velocity(mesh, density, poloidal_flux, radial_flux, parallel_velo
     velocity_top = velocity_bottom[:, :, topiy, topix]
     velocity_top[:, :, (topix < 0) + (topiy < 0)] = 0
 
-    vcart = np.zeros((ns, 3, ny, nx))  # velocities in Cartesian coordinates
+    vcyl = np.zeros((ns, 3, ny, nx))  # velocities in Cartesian coordinates
 
     # Projection of velocity on RZ-plane
-    vcart[:, (0, 2)] = 0.25 * (velocity_bottom + velocity_left + velocity_top + velocity_right)
+    vcyl[:, (0, 2)] = 0.25 * (velocity_bottom + velocity_left + velocity_top + velocity_right)
 
     # Obtaining toroidal velocity
     b = b_field_cylindrical[None]
     bmagn = np.sqrt((b * b).sum(1))
-    vcart[:, 1] = (parallel_velocity * bmagn - vcart[:, 0] * b[:, 0] - vcart[:, 2] * b[:, 2]) / b[:, 1]
+    vcyl[:, 1] = (parallel_velocity * bmagn - vcyl[:, 0] * b[:, 0] - vcyl[:, 2] * b[:, 2]) / b[:, 1]
 
-    return vcart
+    return vcyl
 
 
 def eirene_flux_to_velocity(mesh, density, poloidal_flux, radial_flux, parallel_velocity, b_field_cylindrical):
@@ -861,29 +907,34 @@ def eirene_flux_to_velocity(mesh, density, poloidal_flux, radial_flux, parallel_
     :return: Velocities of atoms in (R, phi, Z) coordinates as a 4-dimensional ndarray of
              shape (mesh.nx, mesh.ny, num_atoms, 3)
     """
+    density = np.array(density, dtype=np.float64, copy=False)
+    poloidal_flux = np.array(poloidal_flux, dtype=np.float64, copy=False)
+    radial_flux = np.array(radial_flux, dtype=np.float64, copy=False)
+    parallel_velocity = np.array(parallel_velocity, dtype=np.float64, copy=False)
+    b_field_cylindrical = np.array(b_field_cylindrical, dtype=np.float64, copy=False)
 
     nx = mesh.nx  # poloidal
     ny = mesh.ny  # radial
     ns = density.shape[0]  # number of neutral atoms
 
-    _check_array('density', density, (ns, ny, nx))
-    _check_array('poloidal_flux', poloidal_flux, (ns, ny, nx))
-    _check_array('radial_flux', radial_flux, (ns, ny, nx))
-    _check_array('parallel_velocity', parallel_velocity, (ns, ny, nx))
-    _check_array('b_field_cylindrical', b_field_cylindrical, (3, ny, nx))
+    _check_shape('density', density, (ns, ny, nx))
+    _check_shape('poloidal_flux', poloidal_flux, (ns, ny, nx))
+    _check_shape('radial_flux', radial_flux, (ns, ny, nx))
+    _check_shape('parallel_velocity', parallel_velocity, (ns, ny, nx))
+    _check_shape('b_field_cylindrical', b_field_cylindrical, (3, ny, nx))
 
     # Obtaining velocity
     poloidal_velocity = np.divide(poloidal_flux, density, out=np.zeros_like(density), where=(density > 0))
     radial_velocity = np.divide(radial_flux, density, out=np.zeros_like(density), where=(density > 0))
 
-    vcart = np.zeros((ns, 3, ny, nx))  # velocities in cylindrical coordinates
+    vcyl = np.zeros((ns, 3, ny, nx))  # velocities in cylindrical coordinates
 
     # Projection of velocity on RZ-plane
-    vcart[:, (0, 2)] = (poloidal_velocity[:, None] * mesh.poloidal_basis_vector[None] + radial_velocity[:, None] * mesh.radial_basis_vector[None])
+    vcyl[:, (0, 2)] = (poloidal_velocity[:, None] * mesh.poloidal_basis_vector[None] + radial_velocity[:, None] * mesh.radial_basis_vector[None])
 
     # Obtaining toroidal velocity
     b = b_field_cylindrical[None]
     bmagn = np.sqrt((b * b).sum(1))
-    vcart[:, 1] = (parallel_velocity * bmagn - vcart[:, 0] * b[:, 0] - vcart[:, 2] * b[:, 2]) / b[:, 1]
+    vcyl[:, 1] = (parallel_velocity * bmagn - vcyl[:, 0] * b[:, 0] - vcyl[:, 2] * b[:, 2]) / b[:, 1]
 
-    return vcart
+    return vcyl

@@ -42,6 +42,10 @@ cdef class SOLPSFunction2D(Function2D):
         # use numpy arrays to store data internally
         vertex_coords = np.array(vertex_coords, dtype=np.float64)
         triangles = np.array(triangles, dtype=np.int32)
+        triangle_to_grid_map = np.array(triangle_to_grid_map, dtype=np.int32)
+
+        # Atention!!! Do not copy grid_data! Attribute self._grid_data must point to the original data array,
+        # so as not to re-initialize the interpolator if the user changes data values.
 
         # build kdtree
         self._kdtree = MeshKDTree2D(vertex_coords, triangles)
@@ -128,6 +132,10 @@ cdef class SOLPSVectorFunction2D(VectorFunction2D):
         # use numpy arrays to store data internally
         vertex_coords = np.array(vertex_coords, dtype=np.float64)
         triangles = np.array(triangles, dtype=np.int32)
+        triangle_to_grid_map = np.array(triangle_to_grid_map, dtype=np.int32)
+
+        # Atention!!! Do not copy grid_vectors! Attribute self._grid_vectors must point to the original data array,
+        # so as not to re-initialize the interpolator if the user changes data values.
 
         # build kdtree
         self._kdtree = MeshKDTree2D(vertex_coords, triangles)
@@ -161,7 +169,7 @@ cdef class SOLPSVectorFunction2D(VectorFunction2D):
         repeated rebuilding of the mesh acceleration structures by sharing the
         geometry data between multiple interpolator objects.
         :param SOLPSVectorFunction2D instance: SOLPSVectorFunction2D object.
-        :param ndarray grid_data: An array containing data on SOLPS grid.
+        :param ndarray grid_vectors: An array containing vector data on SOLPS grid.
         :return: A SOLPSVectorFunction2D object.
         :rtype: SOLPSVectorFunction2D
         """

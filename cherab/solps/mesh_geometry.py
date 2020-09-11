@@ -263,17 +263,6 @@ class SOLPSMesh:
         """
         return self._triangle_to_grid_map
 
-    # @property
-    # def triangle_index_lookup(self):
-    #     """
-    #     Discrete2DMesh instance that looks up a triangle index at any 2D point.
-
-    #     Useful for mapping from a 2D point -> triangle cell -> parent SOLPS mesh cell
-
-    #     :return: Discrete2DMesh instance
-    #     """
-    #     return self._tri_index_loopup
-
     def __getstate__(self):
         state = {
             'r': self._r,
