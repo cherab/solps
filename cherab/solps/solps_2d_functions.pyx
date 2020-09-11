@@ -44,7 +44,7 @@ cdef class SOLPSFunction2D(Function2D):
         triangles = np.array(triangles, dtype=np.int32)
         triangle_to_grid_map = np.array(triangle_to_grid_map, dtype=np.int32)
 
-        # Atention!!! Do not copy grid_data! Attribute self._grid_data must point to the original data array,
+        # Attention!!! Do not copy grid_data! Attribute self._grid_data must point to the original data array,
         # so as not to re-initialize the interpolator if the user changes data values.
 
         # build kdtree
@@ -134,7 +134,7 @@ cdef class SOLPSVectorFunction2D(VectorFunction2D):
         triangles = np.array(triangles, dtype=np.int32)
         triangle_to_grid_map = np.array(triangle_to_grid_map, dtype=np.int32)
 
-        # Atention!!! Do not copy grid_vectors! Attribute self._grid_vectors must point to the original data array,
+        # Attention!!! Do not copy grid_vectors! Attribute self._grid_vectors must point to the original data array,
         # so as not to re-initialize the interpolator if the user changes data values.
 
         # build kdtree
