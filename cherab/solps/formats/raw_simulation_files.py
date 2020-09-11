@@ -94,7 +94,7 @@ def load_solps_from_raw_output(simulation_path, debug=False):
 
     # Load magnetic field
     sim.b_field = geom_data_dict['bb'][:3]
-    # sim.b_field_cartesian is created authomatically
+    # sim.b_field_cylindrical is created authomatically
 
     # Load electron species
     sim.electron_temperature = mesh_data_dict['te'] / elementary_charge
@@ -114,7 +114,7 @@ def load_solps_from_raw_output(simulation_path, debug=False):
     radial_flux = mesh_data_dict['fna'][1::2]
 
     # Obtaining velocity from B2 flux
-    velocities_cartesian = b2_flux_to_velocity(mesh, species_density, poloidal_flux, radial_flux, parallel_velocity, sim.b_field_cartesian)
+    velocities_cylindrical = b2_flux_to_velocity(mesh, species_density, poloidal_flux, radial_flux, parallel_velocity, sim.b_field_cylindrical)
 
     if not b2_standalone:
         # Obtaining additional data from EIRENE and replacing data for neutrals
@@ -137,10 +137,10 @@ def load_solps_from_raw_output(simulation_path, debug=False):
             neutral_parallel_velocity = np.zeros((len(neutral_indx), ny, nx))  # must be zero outside EIRENE grid
             neutral_parallel_velocity[:, 1:-1, 1:-1] = parallel_velocity[neutral_indx, 1:-1, 1:-1]
 
-            neutral_velocities_cartesian = eirene_flux_to_velocity(mesh, neutral_density, neutral_poloidal_flux, neutral_radial_flux,
-                                                                   neutral_parallel_velocity, sim.b_field_cartesian)
+            neutral_velocities_cylindrical = eirene_flux_to_velocity(mesh, neutral_density, neutral_poloidal_flux, neutral_radial_flux,
+                                                                     neutral_parallel_velocity, sim.b_field_cylindrical)
 
-            velocities_cartesian[neutral_indx] = neutral_velocities_cartesian
+            velocities_cylindrical[neutral_indx] = neutral_velocities_cylindrical
 
         # Obtaining neutral temperatures
         ta = np.zeros((eirene.ta.shape[0], ny, nx))
@@ -162,7 +162,7 @@ def load_solps_from_raw_output(simulation_path, debug=False):
         sim.eirene_simulation = eirene
 
     sim.species_density = species_density
-    sim.velocities_cartesian = velocities_cartesian  # this also updates sim.velocities
+    sim.velocities_cylindrical = velocities_cylindrical  # this also updates sim.velocities
 
     return sim
 

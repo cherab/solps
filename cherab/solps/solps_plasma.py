@@ -77,16 +77,16 @@ class SOLPSSimulation:
         self._species_density_f2d = None
         self._species_density_f3d = None
         self._velocities = None
+        self._velocities_cylindrical = None
+        self._velocities_cylindrical_f2d = None
         self._velocities_cartesian = None
-        self._velocities_cartesian_f2d = None
-        self._velocities_cartesian_f3d = None
         self._total_radiation = None
         self._total_radiation_f2d = None
         self._total_radiation_f3d = None
         self._b_field = None
+        self._b_field_cylindrical = None
+        self._b_field_cylindrical_f2d = None
         self._b_field_cartesian = None
-        self._b_field_cartesian_f2d = None
-        self._b_field_cartesian_f3d = None
         self._eirene_model = None  # what is this for?
         self._b2_model = None  # what is this for?
         self._eirene = None  # do we need this in SOLPSSimulation?
@@ -284,65 +284,65 @@ class SOLPSSimulation:
     def velocities(self, value):
         _check_array("velocities", value, (len(self.species_list), 3, self.mesh.ny, self.mesh.nx))
 
-        # Converting to Cartesian coordinates
-        velocities_cartesian = np.zeros(value.shape)
-        velocities_cartesian[:, 2] = value[:, 2]
+        # Converting to cylindrical coordinates
+        velocities_cylindrical = np.zeros(value.shape)
+        velocities_cylindrical[:, 1] = -value[:, 2]
         for k in range(value.shape[0]):
-            velocities_cartesian[k, :2] = self.mesh.to_cartesian(value[k, :2])
+            velocities_cylindrical[k, (0, 2)] = self.mesh.to_cartesian(value[k, :2])
 
         self._velocities = value
-        self._velocities_cartesian = velocities_cartesian
-        self._velocities_cartesian_f2d = {}
-        self._velocities_cartesian_f3d = {}
+        self._velocities_cylindrical = velocities_cylindrical
+        self._velocities_cylindrical_f2d = {}
+        self._velocities_cartesian = {}
         for k, sp in enumerate(self._species_list):
-            self._velocities_cartesian_f2d[k] = SOLPSVectorFunction2D.instance(self._sample_vector_f2d, velocities_cartesian[k])
-            self._velocities_cartesian_f2d[sp] = self._velocities_cartesian_f2d[k]
-            self._velocities_cartesian_f3d[k] = VectorAxisymmetricMapper(self._velocities_cartesian_f2d[k])
-            self._velocities_cartesian_f3d[sp] = self._velocities_cartesian_f3d[k]
+            self._velocities_cylindrical_f2d[k] = SOLPSVectorFunction2D.instance(self._sample_vector_f2d, velocities_cylindrical[k])
+            self._velocities_cylindrical_f2d[sp] = self._velocities_cylindrical_f2d[k]
+            self._velocities_cartesian[k] = VectorAxisymmetricMapper(self._velocities_cylindrical_f2d[k])
+            self._velocities_cartesian[sp] = self._velocities_cartesian[k]
+
+    @property
+    def velocities_cylindrical(self):
+        """
+        Velocities in Cartesian (v_r, v_phi, v_z) coordinates for each species densities at each mesh cell.
+        :return:
+        """
+        return self._velocities_cylindrical
+
+    @property
+    def velocities_cylindrical_f2d(self):
+        """
+        Velocities in Cartesian (v_r, v_phi, v_z) coordinates for each species densities at each mesh cell.
+        :return:
+        """
+        return self._velocities_cylindrical_f2d
 
     @property
     def velocities_cartesian(self):
         """
-        Velocities in Cartesian (v_r, v_z, v_toroidal) coordinates for each species densities at each mesh cell.
+        Velocities in Cartesian (v_x, v_y, v_z) coordinates for each species densities at each mesh cell.
         :return:
         """
         return self._velocities_cartesian
 
-    @property
-    def velocities_cartesian_f2d(self):
-        """
-        Velocities in Cartesian (v_r, v_z, v_toroidal) coordinates for each species densities at each mesh cell.
-        :return:
-        """
-        return self._velocities_cartesian_f2d
-
-    @property
-    def velocities_cartesian_f3d(self):
-        """
-        Velocities in Cartesian (v_r, v_z, v_toroidal) coordinates for each species densities at each mesh cell.
-        :return:
-        """
-        return self._velocities_cartesian_f3d
-
-    @velocities_cartesian.setter
-    def velocities_cartesian(self, value):
-        _check_array("velocities_cartesian", value, (len(self.species_list), 3, self.mesh.ny, self.mesh.nx))
+    @velocities_cylindrical.setter
+    def velocities_cylindrical(self, value):
+        _check_array("velocities_cylindrical", value, (len(self.species_list), 3, self.mesh.ny, self.mesh.nx))
 
         # Converting to poloidal coordinates
         velocities = np.zeros(value.shape)
-        velocities[:, 2] = value[:, 2]
+        velocities[:, 2] = -value[:, 1]
         for k in range(value.shape[0]):
-            velocities[k, :2] = self.mesh.to_poloidal(value[k, :2])
+            velocities[k, :2] = self.mesh.to_poloidal(value[k, (0, 2)])
 
-        self._velocities_cartesian = value
+        self._velocities_cylindrical = value
         self._velocities = velocities
-        self._velocities_cartesian_f2d = {}
-        self._velocities_cartesian_f3d = {}
+        self._velocities_cylindrical_f2d = {}
+        self._velocities_cartesian = {}
         for k, sp in enumerate(self._species_list):
-            self._velocities_cartesian_f2d[k] = SOLPSVectorFunction2D.instance(self._sample_vector_f2d, value[k])
-            self._velocities_cartesian_f2d[sp] = self._velocities_cartesian_f2d[k]
-            self._velocities_cartesian_f3d[k] = VectorAxisymmetricMapper(self._velocities_cartesian_f2d[k])
-            self._velocities_cartesian_f3d[sp] = self._velocities_cartesian_f3d[k]
+            self._velocities_cylindrical_f2d[k] = SOLPSVectorFunction2D.instance(self._sample_vector_f2d, value[k])
+            self._velocities_cylindrical_f2d[sp] = self._velocities_cylindrical_f2d[k]
+            self._velocities_cartesian[k] = VectorAxisymmetricMapper(self._velocities_cylindrical_f2d[k])
+            self._velocities_cartesian[sp] = self._velocities_cartesian[k]
 
     @property
     def inside_mesh(self):
@@ -422,58 +422,58 @@ class SOLPSSimulation:
         _check_array("b_field", value, (3, self.mesh.ny, self.mesh.nx))
 
         # Converting to cartesian system
-        b_field_cartesian = np.zeros(value.shape)
-        b_field_cartesian[2] = value[2]
-        b_field_cartesian[:2] = self.mesh.to_cartesian(value[:2])
+        b_field_cylindrical = np.zeros(value.shape)
+        b_field_cylindrical[1] = -value[2]
+        b_field_cylindrical[(0, 2), :] = self.mesh.to_cartesian(value[:2])
 
-        self._b_field_cartesian = b_field_cartesian
+        self._b_field_cylindrical = b_field_cylindrical
         self._b_field = value
-        self._b_field_cartesian_f2d = SOLPSVectorFunction2D.instance(self._sample_vector_f2d, b_field_cartesian)
-        self._b_field_cartesian_f3d = VectorAxisymmetricMapper(self._b_field_cartesian_f2d)
+        self._b_field_cylindrical_f2d = SOLPSVectorFunction2D.instance(self._sample_vector_f2d, b_field_cylindrical)
+        self._b_field_cartesian = VectorAxisymmetricMapper(self._b_field_cylindrical_f2d)
+
+    @property
+    def b_field_cylindrical(self):
+        """
+        Magnetic B field at each mesh cell in Cartesian coordinates (B_r, B_phi, B_z).
+        """
+        if self._b_field_cylindrical is None:
+            raise RuntimeError("Magnetic field not available for this simulation.")
+        else:
+            return self._b_field_cylindrical
+
+    @property
+    def b_field_cylindrical_f2d(self):
+        """
+        Magnetic B field at each mesh cell in Cartesian coordinates (B_r, B_phi, B_z).
+        """
+        if self._b_field_cylindrical_f2d is None:
+            raise RuntimeError("Magnetic field not available for this simulation.")
+        else:
+            return self._b_field_cylindrical_f2d
 
     @property
     def b_field_cartesian(self):
         """
-        Magnetic B field at each mesh cell in Cartesian coordinates (B_r, B_z, B_toroidal).
+        Magnetic B field at each mesh cell in Cartesian coordinates (B_x, B_y, B_z).
         """
         if self._b_field_cartesian is None:
             raise RuntimeError("Magnetic field not available for this simulation.")
         else:
             return self._b_field_cartesian
 
-    @property
-    def b_field_cartesian_f2d(self):
-        """
-        Magnetic B field at each mesh cell in Cartesian coordinates (B_r, B_z, B_toroidal).
-        """
-        if self._b_field_cartesian_f2d is None:
-            raise RuntimeError("Magnetic field not available for this simulation.")
-        else:
-            return self._b_field_cartesian_f2d
-
-    @property
-    def b_field_cartesian_f3d(self):
-        """
-        Magnetic B field at each mesh cell in Cartesian coordinates (B_r, B_z, B_toroidal).
-        """
-        if self._b_field_cartesian_f3d is None:
-            raise RuntimeError("Magnetic field not available for this simulation.")
-        else:
-            return self._b_field_cartesian_f3d
-
-    @b_field_cartesian.setter
-    def b_field_cartesian(self, value):
-        _check_array("b_field_cartesian", value, (3, self.mesh.ny, self.mesh.nx))
+    @b_field_cylindrical.setter
+    def b_field_cylindrical(self, value):
+        _check_array("b_field_cylindrical", value, (3, self.mesh.ny, self.mesh.nx))
 
         # Converting to poloidal system
         b_field = np.zeros(value.shape)
-        b_field[2] = value[2]
-        b_field[:2] = self.mesh.to_poloidal(value[:2])
+        b_field[2] = -value[1]
+        b_field[:2] = self.mesh.to_poloidal(value[(0, 2), :])
 
         self._b_field = b_field
-        self._b_field_cartesian = value
-        self._b_field_cartesian_f2d = SOLPSVectorFunction2D.instance(self._sample_vector_f2d, value)
-        self._b_field_cartesian_f3d = VectorAxisymmetricMapper(self._b_field_cartesian_f2d)
+        self._b_field_cylindrical = value
+        self._b_field_cylindrical_f2d = SOLPSVectorFunction2D.instance(self._sample_vector_f2d, value)
+        self._b_field_cartesian = VectorAxisymmetricMapper(self._b_field_cylindrical_f2d)
 
     @property
     def eirene_simulation(self):
@@ -503,9 +503,9 @@ class SOLPSSimulation:
             'neutral_temperature': self._neutral_temperature,
             'electron_density': self._electron_density,
             'species_density': self._species_density,
-            'velocities_cartesian': self._velocities_cartesian,
+            'velocities_cylindrical': self._velocities_cylindrical,
             'total_radiation': self._total_radiation,
-            'b_field_cartesian': self._b_field_cartesian,
+            'b_field_cylindrical': self._b_field_cylindrical,
             'eirene_model': self._eirene_model,
             'b2_model': self._b2_model,
             'eirene': self._eirene
@@ -523,12 +523,12 @@ class SOLPSSimulation:
             self.electron_density = state['electron_density']
         if state['species_density'] is not None:
             self.species_density = state['species_density']
-        if state['velocities_cartesian'] is not None:
-            self.velocities_cartesian = state['velocities_cartesian']
+        if state['velocities_cylindrical'] is not None:
+            self.velocities_cylindrical = state['velocities_cylindrical']
         if state['total_radiation'] is not None:
             self.total_radiation = state['total_radiation']
-        if state['b_field_cartesian'] is not None:
-            self.b_field_cartesian = state['b_field_cartesian']
+        if state['b_field_cylindrical'] is not None:
+            self.b_field_cylindrical = state['b_field_cylindrical']
         self._eirene_model = state['eirene_model']
         self._b2_model = state['b2_model']
         self._eirene = state['eirene']
@@ -693,7 +693,7 @@ class SOLPSSimulation:
         plasma.geometry_transform = translate(0, 0, mesh.mesh_extent['minz'])
 
         try:
-            plasma.b_field = self.b_field_cartesian_f3d
+            plasma.b_field = self.b_field_cartesian
         except RuntimeError:
             print('Warning! No magnetic field data available for this simulation.')
 
@@ -701,7 +701,7 @@ class SOLPSSimulation:
         electron_velocity = lambda x, y, z: Vector3D(0, 0, 0)
         plasma.electron_distribution = Maxwellian(self.electron_density_f3d, self.electron_temperature_f3d, electron_velocity, electron_mass)
  
-        if self.velocities_cartesian_f3d is None:
+        if self.velocities_cartesian is None:
             print('Warning! No velocity field data available for this simulation.')
 
         if self.neutral_temperature_f3d is None:
@@ -719,7 +719,7 @@ class SOLPSSimulation:
 
             # Create the velocity vector lookup function
             if self.velocities_cartesian is not None:
-                velocity = self.velocities_cartesian_f3d[k]
+                velocity = self.velocities_cartesian[k]
             else:
                 velocity = lambda x, y, z: Vector3D(0, 0, 0)
 
@@ -755,7 +755,7 @@ def prefer_element(isotope):
     return isotope
 
 
-def b2_flux_to_velocity(mesh, density, poloidal_flux, radial_flux, parallel_velocity, b_field_cartesian):
+def b2_flux_to_velocity(mesh, density, poloidal_flux, radial_flux, parallel_velocity, b_field_cylindrical):
     """
     Calculates velocities of neutral particles using B2 particle fluxes defined at cell faces.
 
@@ -770,8 +770,8 @@ def b2_flux_to_velocity(mesh, density, poloidal_flux, radial_flux, parallel_velo
                                       array of shape (num_atoms, mesh.ny, mesh.nx).
                                       Parallel velocity is a velocity projection on magnetic
                                       field direction.
-    :param ndarray b_field_cartesian: Magnetic field in Cartesian (R, Z, phi) coordinates.
-                                      Must be a 3 dimensional array of shape (3, mesh.ny, mesh.nx).
+    :param ndarray b_field_cylindrical: Magnetic field in Cartesian (R, phi, Z) coordinates.
+                                        Must be a 3 dimensional array of shape (3, mesh.ny, mesh.nx).
 
     :return: Velocities of atoms in (R, Z, phi) coordinates as a 4-dimensional ndarray of
              shape (num_atoms, 3, mesh.ny, mesh.nx)
@@ -785,7 +785,7 @@ def b2_flux_to_velocity(mesh, density, poloidal_flux, radial_flux, parallel_velo
     _check_array('poloidal_flux', poloidal_flux, (ns, ny, nx))
     _check_array('radial_flux', radial_flux, (ns, ny, nx))
     _check_array('parallel_velocity', parallel_velocity, (ns, ny, nx))
-    _check_array('b_field_cartesian', b_field_cartesian, (3, ny, nx))
+    _check_array('b_field_cylindrical', b_field_cylindrical, (3, ny, nx))
 
     poloidal_area = mesh.poloidal_area[None]
     radial_area = mesh.radial_area[None]
@@ -830,17 +830,17 @@ def b2_flux_to_velocity(mesh, density, poloidal_flux, radial_flux, parallel_velo
     vcart = np.zeros((ns, 3, ny, nx))  # velocities in Cartesian coordinates
 
     # Projection of velocity on RZ-plane
-    vcart[:, :2] = 0.25 * (velocity_bottom + velocity_left + velocity_top + velocity_right)
+    vcart[:, (0, 2)] = 0.25 * (velocity_bottom + velocity_left + velocity_top + velocity_right)
 
     # Obtaining toroidal velocity
-    b = b_field_cartesian[None]
+    b = b_field_cylindrical[None]
     bmagn = np.sqrt((b * b).sum(1))
-    vcart[:, 2] = (parallel_velocity * bmagn - vcart[:, 0] * b[:, 0] - vcart[:, 1] * b[:, 1]) / b[:, 2]
+    vcart[:, 1] = (parallel_velocity * bmagn - vcart[:, 0] * b[:, 0] - vcart[:, 2] * b[:, 2]) / b[:, 1]
 
     return vcart
 
 
-def eirene_flux_to_velocity(mesh, density, poloidal_flux, radial_flux, parallel_velocity, b_field_cartesian):
+def eirene_flux_to_velocity(mesh, density, poloidal_flux, radial_flux, parallel_velocity, b_field_cylindrical):
     """
     Calculates velocities of neutral particles using Eirene particle fluxes defined at cell centre.
 
@@ -855,10 +855,10 @@ def eirene_flux_to_velocity(mesh, density, poloidal_flux, radial_flux, parallel_
                                       array of shape (num_atoms, mesh.ny, mesh.nx).
                                       Parallel velocity is a velocity projection on magnetic
                                       field direction.
-    :param ndarray b_field_cartesian: Magnetic field in Cartesian (R, Z, phi) coordinates.
-                                      Must be a 3 dimensional array of shape (3, mesh.ny, mesh.nx).
+    :param ndarray b_field_cylindrical: Magnetic field in Cartesian (R, phi, Z) coordinates.
+                                        Must be a 3 dimensional array of shape (3, mesh.ny, mesh.nx).
 
-    :return: Velocities of atoms in (R, Z, phi) coordinates as a 4-dimensional ndarray of
+    :return: Velocities of atoms in (R, phi, Z) coordinates as a 4-dimensional ndarray of
              shape (mesh.nx, mesh.ny, num_atoms, 3)
     """
 
@@ -870,20 +870,20 @@ def eirene_flux_to_velocity(mesh, density, poloidal_flux, radial_flux, parallel_
     _check_array('poloidal_flux', poloidal_flux, (ns, ny, nx))
     _check_array('radial_flux', radial_flux, (ns, ny, nx))
     _check_array('parallel_velocity', parallel_velocity, (ns, ny, nx))
-    _check_array('b_field_cartesian', b_field_cartesian, (3, ny, nx))
+    _check_array('b_field_cylindrical', b_field_cylindrical, (3, ny, nx))
 
     # Obtaining velocity
     poloidal_velocity = np.divide(poloidal_flux, density, out=np.zeros_like(density), where=(density > 0))
     radial_velocity = np.divide(radial_flux, density, out=np.zeros_like(density), where=(density > 0))
 
-    vcart = np.zeros((ns, 3, ny, nx))  # velocities in Cartesian coordinates
+    vcart = np.zeros((ns, 3, ny, nx))  # velocities in cylindrical coordinates
 
     # Projection of velocity on RZ-plane
-    vcart[:, :2] = (poloidal_velocity[:, None] * mesh.poloidal_basis_vector[None] + radial_velocity[:, None] * mesh.radial_basis_vector[None])
+    vcart[:, (0, 2)] = (poloidal_velocity[:, None] * mesh.poloidal_basis_vector[None] + radial_velocity[:, None] * mesh.radial_basis_vector[None])
 
     # Obtaining toroidal velocity
-    b = b_field_cartesian[None]
+    b = b_field_cylindrical[None]
     bmagn = np.sqrt((b * b).sum(1))
-    vcart[:, 2] = (parallel_velocity * bmagn - vcart[:, 0] * b[:, 0] - vcart[:, 1] * b[:, 1]) / b[:, 2]
+    vcart[:, 1] = (parallel_velocity * bmagn - vcart[:, 0] * b[:, 0] - vcart[:, 2] * b[:, 2]) / b[:, 1]
 
     return vcart

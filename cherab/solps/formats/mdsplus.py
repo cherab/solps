@@ -67,7 +67,7 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     ##########################
     # Magnetic field vectors #
     sim.b_field = conn.get('\SOLPS::TOP.SNAPSHOT.B').data()[:3]
-    # sim.b_field_cartesian is created authomatically
+    # sim.b_field_cylindrical is created authomatically
 
     # Load electron temperature and density
     sim.electron_temperature = conn.get('\SOLPS::TOP.SNAPSHOT.TE').data()
@@ -94,7 +94,7 @@ def load_solps_from_mdsplus(mds_server, ref_number):
         radial_flux = np.concatenate((np.zeros((ns, 1, nx)), radial_flux), axis=1)
 
     # Obtaining velocity from B2 flux
-    velocities_cartesian = b2_flux_to_velocity(mesh, species_density, poloidal_flux, radial_flux, parallel_velocity, sim.b_field_cartesian)
+    velocities_cylindrical = b2_flux_to_velocity(mesh, species_density, poloidal_flux, radial_flux, parallel_velocity, sim.b_field_cylindrical)
 
     # Obtaining additional data from EIRENE and replacing data for neutrals
 
@@ -116,10 +116,10 @@ def load_solps_from_mdsplus(mds_server, ref_number):
             neutral_radial_flux = conn.get('\SOLPS::TOP.SNAPSHOT.RFLA').data()[:]
 
             if np.any(neutral_poloidal_flux) or np.any(neutral_radial_flux):
-                neutral_velocities_cartesian = eirene_flux_to_velocity(mesh, neutral_density, neutral_poloidal_flux, neutral_radial_flux,
-                                                                       parallel_velocity[neutral_indx], sim.b_field_cartesian)
+                neutral_velocities_cylindrical = eirene_flux_to_velocity(mesh, neutral_density, neutral_poloidal_flux, neutral_radial_flux,
+                                                                         parallel_velocity[neutral_indx], sim.b_field_cylindrical)
 
-                velocities_cartesian[neutral_indx] = neutral_velocities_cartesian
+                velocities_cylindrical[neutral_indx] = neutral_velocities_cylindrical
         except (mdsExceptions.TreeNNF, TypeError):
             pass
 
@@ -130,7 +130,7 @@ def load_solps_from_mdsplus(mds_server, ref_number):
             pass
 
     sim.species_density = species_density
-    sim.velocities_cartesian = velocities_cartesian  # this also updates sim.velocities
+    sim.velocities_cylindrical = velocities_cylindrical  # this also updates sim.velocities
 
     ###############################
     # Load extra data from server #
