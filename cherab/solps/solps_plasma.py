@@ -498,8 +498,6 @@ class SOLPSSimulation:
         state = {
             'mesh': self._mesh.__getstate__(),
             'species_list': self._species_list,
-            'inside_mesh': self._inside_mesh,
-            'sample_vector_f2d': self._sample_vector_f2d,
             'electron_temperature': self._electron_temperature,
             'ion_temperature': self._ion_temperature,
             'neutral_temperature': self._neutral_temperature,
@@ -515,37 +513,6 @@ class SOLPSSimulation:
         return state
 
     def __setstate__(self, state):
-        self._mesh = SOLPSMesh(**state['mesh'])
-        self._species_list = state['species_list']
-        self._neutral_list = tuple([sp for sp in self._species_list if sp[1] == 0])
-        self._inside_mesh = state['inside_mesh']
-        self._sample_vector_f2d = state['sample_vector_f2d']
-        self._electron_temperature = None
-        self._electron_temperature_f2d = None
-        self._electron_temperature_f3d = None
-        self._electron_density = None
-        self._electron_density_f2d = None
-        self._electron_density_f3d = None
-        self._ion_temperature = None
-        self._ion_temperature_f2d = None
-        self._ion_temperature_f3d = None
-        self._neutral_temperature = None
-        self._neutral_temperature_f2d = None
-        self._neutral_temperature_f3d = None
-        self._species_density = None
-        self._species_density_f2d = None
-        self._species_density_f3d = None
-        self._velocities = None
-        self._velocities_cartesian = None
-        self._velocities_cartesian_f2d = None
-        self._velocities_cartesian_f3d = None
-        self._total_radiation = None
-        self._total_radiation_f2d = None
-        self._total_radiation_f3d = None
-        self._b_field = None
-        self._b_field_cartesian = None
-        self._b_field_cartesian_f2d = None
-        self._b_field_cartesian_f3d = None
         if state['electron_temperature'] is not None:
             self.electron_temperature = state['electron_temperature']  # will create _f2d() and _f3d()
         if state['ion_temperature'] is not None:
