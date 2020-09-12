@@ -28,7 +28,7 @@ from cherab.core.atomic.elements import lookup_isotope
 from cherab.solps.eirene import load_fort44_file
 from cherab.solps.b2.parse_b2_block_file import load_b2f_file
 from cherab.solps.mesh_geometry import SOLPSMesh
-from cherab.solps.solps_plasma import SOLPSSimulation, prefer_element, b2_flux_to_velocity, eirene_flux_to_velocity
+from cherab.solps.solps_plasma import SOLPSSimulation, prefer_element
 
 
 # Code based on script by Felix Reimold (2016)
@@ -104,7 +104,7 @@ def load_solps_from_raw_output(simulation_path, debug=False):
     sim.ion_temperature = mesh_data_dict['ti'] / elementary_charge
 
     # Load species density
-    species_density = mesh_data_dict['na']
+    sim.species_density = mesh_data_dict['na']
 
     # Load parallel velocity
     parallel_velocity = mesh_data_dict['ua']
@@ -114,7 +114,7 @@ def load_solps_from_raw_output(simulation_path, debug=False):
     radial_flux = mesh_data_dict['fna'][1::2]
 
     # Obtaining velocity from B2 flux
-    velocities_cylindrical = b2_flux_to_velocity(mesh, species_density, poloidal_flux, radial_flux, parallel_velocity, sim.b_field_cylindrical)
+    sim.b2_flux_to_velocity(poloidal_flux, radial_flux, parallel_velocity)
 
     if not b2_standalone:
         # Obtaining additional data from EIRENE and replacing data for neutrals
@@ -123,7 +123,7 @@ def load_solps_from_raw_output(simulation_path, debug=False):
 
         neutral_density = np.zeros((len(neutral_indx), ny, nx))
         neutral_density[:, 1:-1, 1:-1] = eirene.da
-        species_density[neutral_indx] = neutral_density
+        sim.species_density[neutral_indx] = neutral_density
 
         # Obtaining neutral atom velocity from EIRENE flux
         # Note that if the output for fluxes was turned off, eirene.ppa and eirene.rpa are all zeros
@@ -137,10 +137,7 @@ def load_solps_from_raw_output(simulation_path, debug=False):
             neutral_parallel_velocity = np.zeros((len(neutral_indx), ny, nx))  # must be zero outside EIRENE grid
             neutral_parallel_velocity[:, 1:-1, 1:-1] = parallel_velocity[neutral_indx, 1:-1, 1:-1]
 
-            neutral_velocities_cylindrical = eirene_flux_to_velocity(mesh, neutral_density, neutral_poloidal_flux, neutral_radial_flux,
-                                                                     neutral_parallel_velocity, sim.b_field_cylindrical)
-
-            velocities_cylindrical[neutral_indx] = neutral_velocities_cylindrical
+            sim.eirene_flux_to_velocity(neutral_poloidal_flux, neutral_radial_flux, neutral_parallel_velocity)
 
         # Obtaining neutral temperatures
         ta = np.zeros((eirene.ta.shape[0], ny, nx))
@@ -160,9 +157,6 @@ def load_solps_from_raw_output(simulation_path, debug=False):
         sim.total_radiation = total_radiation
 
         sim.eirene_simulation = eirene
-
-    sim.species_density = species_density
-    sim.velocities_cylindrical = velocities_cylindrical  # this also updates sim.velocities
 
     return sim
 

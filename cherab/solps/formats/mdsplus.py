@@ -22,7 +22,7 @@ from raysect.core import Point2D
 
 from cherab.core.atomic.elements import lookup_isotope
 from cherab.solps.mesh_geometry import SOLPSMesh
-from cherab.solps.solps_plasma import SOLPSSimulation, prefer_element, b2_flux_to_velocity, eirene_flux_to_velocity
+from cherab.solps.solps_plasma import SOLPSSimulation, prefer_element
 
 from matplotlib import pyplot as plt
 
@@ -77,7 +77,7 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     sim.ion_temperature = conn.get('\SOLPS::TOP.SNAPSHOT.TI').data()
 
     # Load species density
-    species_density = conn.get('\SOLPS::TOP.SNAPSHOT.NA').data()
+    sim.species_density = conn.get('\SOLPS::TOP.SNAPSHOT.NA').data()
 
     # Load parallel velocity
     parallel_velocity = conn.get('\SOLPS::TOP.SNAPSHOT.UA').data()
@@ -93,16 +93,17 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     if radial_flux.shape[1] == ny - 1:
         radial_flux = np.concatenate((np.zeros((ns, 1, nx)), radial_flux), axis=1)
 
-    # Obtaining velocity from B2 flux
-    velocities_cylindrical = b2_flux_to_velocity(mesh, species_density, poloidal_flux, radial_flux, parallel_velocity, sim.b_field_cylindrical)
+    # Setting velocities from B2 flux
+    sim.b2_flux_to_velocity(poloidal_flux, radial_flux, parallel_velocity)
 
     # Obtaining additional data from EIRENE and replacing data for neutrals
 
     b2_standalone = False
     try:
         # Replace the species densities
-        neutral_density = conn.get('\SOLPS::TOP.SNAPSHOT.DAB2').data()
-        species_density[neutral_indx] = neutral_density[:]  # this will throw a TypeError is neutral_density is not an array
+        neutral_density = conn.get('\SOLPS::TOP.SNAPSHOT.DAB2').data()  # this will throw a TypeError is neutral_density is not an array
+        # We can update the data without re-initialising interpolators because they use pointers
+        sim.species_density[neutral_indx] = neutral_density[:]
 
     except (mdsExceptions.TreeNNF, TypeError):
         print("Warning! This is B2 stand-alone simulation.")
@@ -116,10 +117,7 @@ def load_solps_from_mdsplus(mds_server, ref_number):
             neutral_radial_flux = conn.get('\SOLPS::TOP.SNAPSHOT.RFLA').data()[:]
 
             if np.any(neutral_poloidal_flux) or np.any(neutral_radial_flux):
-                neutral_velocities_cylindrical = eirene_flux_to_velocity(mesh, neutral_density, neutral_poloidal_flux, neutral_radial_flux,
-                                                                         parallel_velocity[neutral_indx], sim.b_field_cylindrical)
-
-                velocities_cylindrical[neutral_indx] = neutral_velocities_cylindrical
+                sim.eirene_flux_to_velocity(neutral_poloidal_flux, neutral_radial_flux, parallel_velocity[neutral_indx])
         except (mdsExceptions.TreeNNF, TypeError):
             pass
 
@@ -128,9 +126,6 @@ def load_solps_from_mdsplus(mds_server, ref_number):
             sim.neutral_temperature = conn.get('\SOLPS::TOP.SNAPSHOT.TAB2').data()[:]
         except (mdsExceptions.TreeNNF, TypeError):
             pass
-
-    sim.species_density = species_density
-    sim.velocities_cylindrical = velocities_cylindrical  # this also updates sim.velocities
 
     ###############################
     # Load extra data from server #

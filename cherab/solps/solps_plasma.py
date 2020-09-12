@@ -20,7 +20,7 @@
 import pickle
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.constants import atomic_mass, electron_mass
+from scipy.constants import atomic_mass, electron_mass, elementary_charge
 
 # Raysect imports
 from raysect.core import translate, Point3D, Vector3D, Node, AffineMatrix3D
@@ -67,6 +67,10 @@ class SOLPSSimulation:
         self._electron_density = None
         self._electron_density_f2d = None
         self._electron_density_f3d = None
+        self._electron_velocities = None
+        self._electron_velocities_cylindrical = None
+        self._electron_velocities_cylindrical_f2d = None
+        self._electron_velocities_cartesian = None
         self._ion_temperature = None
         self._ion_temperature_f2d = None
         self._ion_temperature_f3d = None
@@ -257,6 +261,73 @@ class SOLPSSimulation:
         self._electron_density_f3d = AxisymmetricMapper(self._electron_density_f2d)
 
     @property
+    def electron_velocities(self):
+        """
+        Electron velocities in poloidal coordinates (e_pol, e_rad, e_tor) at each mesh cell.
+        Array of shape (3, ny, nx):
+        [0, :, :] - poloidal, [1, :, :] - radial, [2, :, :] - toroidal.
+        :return:
+        """
+        return self._electron_velocities
+
+    @electron_velocities.setter
+    def electron_velocities(self, value):
+        value = np.array(value, dtype=np.float64, copy=False)
+        _check_shape("electron_velocities", value, (3, self.mesh.ny, self.mesh.nx))
+
+        # Converting to cylindrical coordinates
+        velocities_cylindrical = np.zeros(value.shape)
+        velocities_cylindrical[1] = -value[2]
+        velocities_cylindrical[[0, 2]] = self.mesh.to_cartesian(value[:2])
+
+        self._electron_velocities = value
+        self._electron_velocities_cylindrical = velocities_cylindrical
+        self._electron_velocities_cylindrical_f2d = SOLPSVectorFunction2D.instance(self._sample_vector_f2d, velocities_cylindrical)
+        self._electron_velocities_cartesian = VectorAxisymmetricMapper(self._electron_velocities_cylindrical_f2d)
+
+    @property
+    def electron_velocities_cylindrical(self):
+        """
+        Electron velocities in cylindrical coordinates (R, phi, Z) at each mesh cell.
+        Array of shape (3, ny, nx): [0, :, :] - R, [1, :, :] - phi, [2, :, :] - Z.
+        :return:
+        """
+        return self._electron_velocities_cylindrical
+
+    @electron_velocities_cylindrical.setter
+    def electron_velocities_cylindrical(self, value):
+        value = np.array(value, dtype=np.float64, copy=False)
+        _check_shape("electron_velocities_cylindrical", value, (3, self.mesh.ny, self.mesh.nx))
+
+        # Converting to poloidal coordinates
+        velocities = np.zeros(value.shape)
+        velocities[:, 2] = -value[:, 1]
+        velocities[:2] = self.mesh.to_poloidal(value[[0, 2]])
+
+        self._electron_velocities_cylindrical = value
+        self._electron_velocities = velocities
+        self._electron_velocities_cylindrical_f2d = SOLPSVectorFunction2D.instance(self._sample_vector_f2d, value)
+        self._electron_velocities_cartesian = VectorAxisymmetricMapper(self._electron_velocities_cylindrical_f2d)
+
+    @property
+    def electron_velocities_cylindrical_f2d(self):
+        """
+        VectorFunction2D interpolator for electron velocities in cylindrical coordinates.
+        Returns a vector of electron velocity at a given point (R, Z).
+        :return:
+        """
+        return self._electron_velocities_cylindrical_f2d
+
+    @property
+    def electron_velocities_cartesian(self):
+        """
+        VectorFunction3D interpolator for electron velocities in Cartesian coordinates.
+        Returns a vector of electron velocity at a given point (x, y, z).
+        :return:
+        """
+        return self._electron_velocities_cartesian
+
+    @property
     def species_density(self):
         """
         Simulated species densities at each mesh cell.
@@ -319,7 +390,7 @@ class SOLPSSimulation:
         velocities_cylindrical = np.zeros(value.shape)
         velocities_cylindrical[:, 1] = -value[:, 2]
         for k in range(value.shape[0]):
-            velocities_cylindrical[k, (0, 2)] = self.mesh.to_cartesian(value[k, :2])
+            velocities_cylindrical[k, [0, 2]] = self.mesh.to_cartesian(value[k, :2])
 
         self._velocities = value
         self._velocities_cylindrical = velocities_cylindrical
@@ -340,6 +411,27 @@ class SOLPSSimulation:
         """
         return self._velocities_cylindrical
 
+    @velocities_cylindrical.setter
+    def velocities_cylindrical(self, value):
+        value = np.array(value, dtype=np.float64, copy=False)
+        _check_shape("velocities_cylindrical", value, (len(self.species_list), 3, self.mesh.ny, self.mesh.nx))
+
+        # Converting to poloidal coordinates
+        velocities = np.zeros(value.shape)
+        velocities[:, 2] = -value[:, 1]
+        for k in range(value.shape[0]):
+            velocities[k, :2] = self.mesh.to_poloidal(value[k, [0, 2]])
+
+        self._velocities_cylindrical = value
+        self._velocities = velocities
+        self._velocities_cylindrical_f2d = {}
+        self._velocities_cartesian = {}
+        for k, sp in enumerate(self._species_list):
+            self._velocities_cylindrical_f2d[k] = SOLPSVectorFunction2D.instance(self._sample_vector_f2d, value[k])
+            self._velocities_cylindrical_f2d[sp] = self._velocities_cylindrical_f2d[k]
+            self._velocities_cartesian[k] = VectorAxisymmetricMapper(self._velocities_cylindrical_f2d[k])
+            self._velocities_cartesian[sp] = self._velocities_cartesian[k]
+
     @property
     def velocities_cylindrical_f2d(self):
         """
@@ -356,34 +448,13 @@ class SOLPSSimulation:
     def velocities_cartesian(self):
         """
         Dictionary of VectorFunction3D interpolators for species velocities
-        in cartesian coordinates.
+        in Cartesian coordinates.
         Accessed by species index or species_list elements.
         E.g., elocities_cylindrical_f3d[1] or elocities_cylindrical_f3d[('deuterium', 1))].
         Each entry returns a vector of species velocity at a given point (x, y, z).
         :return:
         """
         return self._velocities_cartesian
-
-    @velocities_cylindrical.setter
-    def velocities_cylindrical(self, value):
-        value = np.array(value, dtype=np.float64, copy=False)
-        _check_shape("velocities_cylindrical", value, (len(self.species_list), 3, self.mesh.ny, self.mesh.nx))
-
-        # Converting to poloidal coordinates
-        velocities = np.zeros(value.shape)
-        velocities[:, 2] = -value[:, 1]
-        for k in range(value.shape[0]):
-            velocities[k, :2] = self.mesh.to_poloidal(value[k, (0, 2)])
-
-        self._velocities_cylindrical = value
-        self._velocities = velocities
-        self._velocities_cylindrical_f2d = {}
-        self._velocities_cartesian = {}
-        for k, sp in enumerate(self._species_list):
-            self._velocities_cylindrical_f2d[k] = SOLPSVectorFunction2D.instance(self._sample_vector_f2d, value[k])
-            self._velocities_cylindrical_f2d[sp] = self._velocities_cylindrical_f2d[k]
-            self._velocities_cartesian[k] = VectorAxisymmetricMapper(self._velocities_cylindrical_f2d[k])
-            self._velocities_cartesian[sp] = self._velocities_cartesian[k]
 
     @property
     def inside_mesh(self):
@@ -460,10 +531,10 @@ class SOLPSSimulation:
         value = np.array(value, dtype=np.float64, copy=False)
         _check_shape("b_field", value, (3, self.mesh.ny, self.mesh.nx))
 
-        # Converting to cartesian system
+        # Converting to cylindrical system
         b_field_cylindrical = np.zeros(value.shape)
         b_field_cylindrical[1] = -value[2]
-        b_field_cylindrical[(0, 2), :] = self.mesh.to_cartesian(value[:2])
+        b_field_cylindrical[[0, 2]] = self.mesh.to_cartesian(value[:2])
 
         self._b_field_cylindrical = b_field_cylindrical
         self._b_field = value
@@ -511,7 +582,7 @@ class SOLPSSimulation:
         # Converting to poloidal system
         b_field = np.zeros(value.shape)
         b_field[2] = -value[1]
-        b_field[:2] = self.mesh.to_poloidal(value[(0, 2), :])
+        b_field[:2] = self.mesh.to_poloidal(value[[0, 2]])
 
         self._b_field = b_field
         self._b_field_cylindrical = value
@@ -537,6 +608,152 @@ class SOLPSSimulation:
 
         self._eirene = value
 
+    def b2_flux_to_velocity(self, poloidal_flux, radial_flux, parallel_velocity):
+        """
+        Sets velocities of all species using B2 particle fluxes defined at cell faces.
+
+        :param ndarray poloidal_flux: Poloidal flux of atoms in s-1. Must be a 3 dimensional array of
+                                      shape (num_atoms, mesh.ny, mesh.nx).
+        :param ndarray radial_flux: Radial flux of atoms in s-1. Must be a 3 dimensional array of
+                                    shape (num_atoms, mesh.ny, mesh.nx).
+        :param ndarray parallel_velocity: Parallel velocity of atoms in m/s. Must be a 3 dimensional
+                                          array of shape (num_atoms, mesh.ny, mesh.nx).
+                                          Parallel velocity is a velocity projection on magnetic
+                                          field direction.
+        """
+        if self.b_field_cylindrical is None:
+            raise RuntimeError('Attribute "b_field_cylindrical" is not set.')
+        if self.species_density is None:
+            raise RuntimeError('Attribute "species_density" is not set.')
+
+        mesh = self.mesh
+        b = self.b_field_cylindrical
+
+        poloidal_flux = np.array(poloidal_flux, dtype=np.float64, copy=False)
+        radial_flux = np.array(radial_flux, dtype=np.float64, copy=False)
+        parallel_velocity = np.array(parallel_velocity, dtype=np.float64, copy=False)
+
+        nx = mesh.nx  # poloidal
+        ny = mesh.ny  # radial
+        ns = len(self.species_list)  # number of species
+
+        _check_shape('poloidal_flux', poloidal_flux, (ns, ny, nx))
+        _check_shape('radial_flux', radial_flux, (ns, ny, nx))
+        _check_shape('parallel_velocity', parallel_velocity, (ns, ny, nx))
+
+        poloidal_area = mesh.poloidal_area
+        radial_area = mesh.radial_area
+        leftix = mesh.neighbix[0]  # poloidal prev.
+        leftiy = mesh.neighbiy[0]
+        bottomix = mesh.neighbix[1]  # radial prev.
+        bottomiy = mesh.neighbiy[1]
+        rightix = mesh.neighbix[2]   # poloidal next.
+        rightiy = mesh.neighbiy[2]
+        topix = mesh.neighbix[3]  # radial next.
+        topiy = mesh.neighbiy[3]
+
+        # Converting s-1 --> m-2 s-1
+        poloidal_flux = np.divide(poloidal_flux, poloidal_area, out=np.zeros_like(poloidal_flux), where=poloidal_area > 0)
+        radial_flux = np.divide(radial_flux, radial_area, out=np.zeros_like(radial_flux), where=radial_area > 0)
+
+        # Obtaining left velocity
+        dens_neighb = self.species_density[:, leftiy, leftix]  # density in the left neighbouring cell
+        has_neighbour = ((leftix > -1) * (leftiy > -1))  # check if has left neighbour
+        neg_flux = (poloidal_flux < 0) * (self.species_density > 0)  # will use density in this cell if flux is negative
+        pos_flux = (poloidal_flux > 0) * (dens_neighb > 0) * has_neighbour  # will use density in neighbouring cell if flux is positive
+        velocity_left = np.divide(poloidal_flux, self.species_density, out=np.zeros((ns, ny, nx)), where=neg_flux)
+        velocity_left = np.divide(poloidal_flux, dens_neighb, out=velocity_left, where=pos_flux)
+        poloidal_face_normal = mesh.radial_basis_vector[[1, 0]]
+        poloidal_face_normal[1] *= -1
+        velocity_left = velocity_left[:, None] * poloidal_face_normal  # to vector in RZ
+
+        # Obtaining bottom velocity
+        dens_neighb = self.species_density[:, bottomiy, bottomix]
+        has_neighbour = ((bottomix > -1) * (bottomiy > -1))
+        neg_flux = (radial_flux < 0) * (self.species_density > 0)
+        pos_flux = (poloidal_flux > 0) * (dens_neighb > 0) * has_neighbour
+        velocity_bottom = np.divide(radial_flux, self.species_density, out=np.zeros((ns, ny, nx)), where=neg_flux)
+        velocity_bottom = np.divide(radial_flux, dens_neighb, out=velocity_bottom, where=pos_flux)
+        radial_face_normal = mesh.poloidal_basis_vector[[1, 0]]
+        radial_face_normal[0] *= -1
+        velocity_bottom = velocity_bottom[:, None] * radial_face_normal  # to RZ
+
+        # Obtaining right and top velocities
+        velocity_right = velocity_left[:, :, rightiy, rightix]
+        velocity_right[:, :, (rightix < 0) + (rightiy < 0)] = 0
+
+        velocity_top = velocity_bottom[:, :, topiy, topix]
+        velocity_top[:, :, (topix < 0) + (topiy < 0)] = 0
+
+        vcyl = np.zeros((ns, 3, ny, nx))  # velocities in cylindrical coordinates
+
+        # Projection of velocity on RZ-plane
+        vcyl[:, [0, 2]] = 0.25 * (velocity_bottom + velocity_left + velocity_top + velocity_right)
+
+        # Obtaining toroidal velocity
+        bmagn = np.sqrt((b * b).sum(0))
+        vcyl[:, 1] = (parallel_velocity * bmagn - vcyl[:, 0] * b[0] - vcyl[:, 2] * b[2]) / b[1]
+
+        self.velocities_cylindrical = vcyl
+
+    def eirene_flux_to_velocity(self, poloidal_flux, radial_flux, parallel_velocity):
+        """
+        Sets velocities of neutral atoms using Eirene particle fluxes defined at cell centre.
+
+        :param ndarray poloidal_flux: Poloidal flux of atoms in m-2 s-1. Must be a 3 dimensional array of
+                                      shape (num_atoms, mesh.ny, mesh.nx).
+        :param ndarray radial_flux: Radial flux of atoms in m-2 s-1. Must be a 3 dimensional array of
+                                    shape (num_atoms, mesh.ny, mesh.nx).
+        :param ndarray parallel_velocity: Parallel velocity of atoms in m/s. Must be a 3 dimensional
+                                          array of shape (num_atoms, mesh.ny, mesh.nx).
+                                          Parallel velocity is a velocity projection on magnetic
+                                          field direction.
+        """
+        if self.b_field_cylindrical is None:
+            raise RuntimeError('Attribute "b_field_cylindrical" is not set.')
+        if self.species_density is None:
+            raise RuntimeError('Attribute "species_density" is not set.')
+
+        mesh = self.mesh
+        b = self.b_field_cylindrical
+
+        poloidal_flux = np.array(poloidal_flux, dtype=np.float64, copy=False)
+        radial_flux = np.array(radial_flux, dtype=np.float64, copy=False)
+        parallel_velocity = np.array(parallel_velocity, dtype=np.float64, copy=False)
+
+        nx = mesh.nx  # poloidal
+        ny = mesh.ny  # radial
+        ns = len(self._neutral_list)  # number of neutral atoms
+
+        _check_shape('poloidal_flux', poloidal_flux, (ns, ny, nx))
+        _check_shape('radial_flux', radial_flux, (ns, ny, nx))
+        _check_shape('parallel_velocity', parallel_velocity, (ns, ny, nx))
+
+        neutral_indx = [k for k, sp in enumerate(self.species_list) if sp[1] == 0]
+        density = self.species_density[neutral_indx, :]
+
+        # Obtaining velocity
+        poloidal_velocity = np.divide(poloidal_flux, density, out=np.zeros_like(density), where=(density > 0))
+        radial_velocity = np.divide(radial_flux, density, out=np.zeros_like(density), where=(density > 0))
+
+        vcyl = np.zeros((ns, 3, ny, nx))  # velocities in cylindrical coordinates
+
+        # Projection of velocity on RZ-plane
+        vcyl[:, [0, 2]] = (poloidal_velocity[:, None] * mesh.poloidal_basis_vector + radial_velocity[:, None] * mesh.radial_basis_vector)
+
+        # Obtaining toroidal velocity
+        bmagn = np.sqrt((b * b).sum(0))
+        vcyl[:, 1] = (parallel_velocity * bmagn - vcyl[:, 0] * b[0] - vcyl[:, 2] * b[2]) / b[1]
+
+        if self.velocities_cylindrical is not None:   # we need to update self._velocities also
+            vcyl_all = self.velocities_cylindrical
+        else:
+            vcyl_all = np.zeros(len(self.species_list, 3, ny, nx))
+
+        vcyl_all[neutral_indx] = vcyl
+
+        self.velocities_cylindrical = vcyl_all
+
     def __getstate__(self):
         state = {
             'mesh': self._mesh.__getstate__(),
@@ -546,6 +763,7 @@ class SOLPSSimulation:
             'neutral_temperature': self._neutral_temperature,
             'electron_density': self._electron_density,
             'species_density': self._species_density,
+            'electron_velocities_cylindrical': self._electron_velocities_cylindrical,
             'velocities_cylindrical': self._velocities_cylindrical,
             'total_radiation': self._total_radiation,
             'b_field_cylindrical': self._b_field_cylindrical,
@@ -566,6 +784,8 @@ class SOLPSSimulation:
             self.electron_density = state['electron_density']
         if state['species_density'] is not None:
             self.species_density = state['species_density']
+        if state['electron_velocities_cylindrical'] is not None:
+            self.velocities_cylindrical = state['electron_velocities_cylindrical']
         if state['velocities_cylindrical'] is not None:
             self.velocities_cylindrical = state['velocities_cylindrical']
         if state['total_radiation'] is not None:
@@ -741,11 +961,15 @@ class SOLPSSimulation:
             print('Warning! No magnetic field data available for this simulation.')
 
         # Create electron species
-        electron_velocity = lambda x, y, z: Vector3D(0, 0, 0)
+        if self.electron_velocities_cartesian is None:
+            print('Warning! No electron velocity data available for this simulation.')
+            electron_velocity = lambda x, y, z: Vector3D(0, 0, 0)
+        else:
+            electron_velocity = self.electron_velocities_cartesian
         plasma.electron_distribution = Maxwellian(self.electron_density_f3d, self.electron_temperature_f3d, electron_velocity, electron_mass)
  
         if self.velocities_cartesian is None:
-            print('Warning! No velocity field data available for this simulation.')
+            print('Warning! No species velocities data available for this simulation.')
 
         if self.neutral_temperature_f3d is None:
             print('Warning! No neutral atom temperature data available for this simulation.')
@@ -794,147 +1018,3 @@ def prefer_element(isotope):
         return isotope.element
 
     return isotope
-
-
-def b2_flux_to_velocity(mesh, density, poloidal_flux, radial_flux, parallel_velocity, b_field_cylindrical):
-    """
-    Calculates velocities of neutral particles using B2 particle fluxes defined at cell faces.
-
-    :param SOLPSMesh mesh: SOLPS simulation mesh.
-    :param ndarray density: Density of atoms in m-3. Must be 3 dimensiona array of
-                            shape (num_atoms, mesh.ny, mesh.nx).
-    :param ndarray poloidal_flux: Poloidal flux of atoms in s-1. Must be a 3 dimensional array of
-                                  shape (num_atoms, mesh.ny, mesh.nx).
-    :param ndarray radial_flux: Radial flux of atoms in s-1. Must be a 3 dimensional array of
-                                shape (num_atoms, mesh.ny, mesh.nx).
-    :param ndarray parallel_velocity: Parallel velocity of atoms in m/s. Must be a 3 dimensional
-                                      array of shape (num_atoms, mesh.ny, mesh.nx).
-                                      Parallel velocity is a velocity projection on magnetic
-                                      field direction.
-    :param ndarray b_field_cylindrical: Magnetic field in Cartesian (R, phi, Z) coordinates.
-                                        Must be a 3 dimensional array of shape (3, mesh.ny, mesh.nx).
-
-    :return: Velocities of atoms in (R, Z, phi) coordinates as a 4-dimensional ndarray of
-             shape (num_atoms, 3, mesh.ny, mesh.nx)
-    """
-    density = np.array(density, dtype=np.float64, copy=False)
-    poloidal_flux = np.array(poloidal_flux, dtype=np.float64, copy=False)
-    radial_flux = np.array(radial_flux, dtype=np.float64, copy=False)
-    parallel_velocity = np.array(parallel_velocity, dtype=np.float64, copy=False)
-    b_field_cylindrical = np.array(b_field_cylindrical, dtype=np.float64, copy=False)
-
-    nx = mesh.nx  # poloidal
-    ny = mesh.ny  # radial
-    ns = density.shape[0]  # number of species
-
-    _check_shape('density', density, (ns, ny, nx))
-    _check_shape('poloidal_flux', poloidal_flux, (ns, ny, nx))
-    _check_shape('radial_flux', radial_flux, (ns, ny, nx))
-    _check_shape('parallel_velocity', parallel_velocity, (ns, ny, nx))
-    _check_shape('b_field_cylindrical', b_field_cylindrical, (3, ny, nx))
-
-    poloidal_area = mesh.poloidal_area[None]
-    radial_area = mesh.radial_area[None]
-    leftix = mesh.neighbix[0]  # poloidal prev.
-    leftiy = mesh.neighbiy[0]
-    bottomix = mesh.neighbix[1]  # radial prev.
-    bottomiy = mesh.neighbiy[1]
-    rightix = mesh.neighbix[2]   # poloidal next.
-    rightiy = mesh.neighbiy[2]
-    topix = mesh.neighbix[3]  # radial next.
-    topiy = mesh.neighbiy[3]
-
-    # Converting s-1 --> m-2 s-1
-    poloidal_flux = np.divide(poloidal_flux, poloidal_area, out=np.zeros_like(poloidal_flux), where=poloidal_area > 0)
-    radial_flux = np.divide(radial_flux, radial_area, out=np.zeros_like(radial_flux), where=radial_area > 0)
-
-    # Obtaining left velocity
-    dens_neighb = density[:, leftiy, leftix]  # density in the left neighbouring cell
-    has_neighbour = ((leftix > -1) * (leftiy > -1))[None]  # check if has left neighbour
-    neg_flux = (poloidal_flux < 0) * (density > 0)  # will use density in this cell if flux is negative
-    pos_flux = (poloidal_flux > 0) * (dens_neighb > 0) * has_neighbour  # will use density in neighbouring cell if flux is positive
-    velocity_left = np.divide(poloidal_flux, density, out=np.zeros((ns, ny, nx)), where=neg_flux)
-    velocity_left = np.divide(poloidal_flux, dens_neighb, out=velocity_left, where=pos_flux)
-    velocity_left = velocity_left[:, None] * mesh.poloidal_basis_vector[None]  # to vector in Cartesian
-
-    # Obtaining bottom velocity
-    dens_neighb = density[:, bottomiy, bottomix]
-    has_neighbour = ((bottomix > -1) * (bottomiy > -1))[None]
-    neg_flux = (radial_flux < 0) * (density > 0)
-    pos_flux = (poloidal_flux > 0) * (dens_neighb > 0) * has_neighbour
-    velocity_bottom = np.divide(radial_flux, density, out=np.zeros((ns, ny, nx)), where=neg_flux)
-    velocity_bottom = np.divide(radial_flux, dens_neighb, out=velocity_bottom, where=pos_flux)
-    velocity_bottom = velocity_bottom[:, None] * mesh.radial_basis_vector[None]  # to Cartesian
-
-    # Obtaining right and top velocities
-    velocity_right = velocity_left[:, :, rightiy, rightix]
-    velocity_right[:, :, (rightix < 0) + (rightiy < 0)] = 0
-
-    velocity_top = velocity_bottom[:, :, topiy, topix]
-    velocity_top[:, :, (topix < 0) + (topiy < 0)] = 0
-
-    vcyl = np.zeros((ns, 3, ny, nx))  # velocities in Cartesian coordinates
-
-    # Projection of velocity on RZ-plane
-    vcyl[:, (0, 2)] = 0.25 * (velocity_bottom + velocity_left + velocity_top + velocity_right)
-
-    # Obtaining toroidal velocity
-    b = b_field_cylindrical[None]
-    bmagn = np.sqrt((b * b).sum(1))
-    vcyl[:, 1] = (parallel_velocity * bmagn - vcyl[:, 0] * b[:, 0] - vcyl[:, 2] * b[:, 2]) / b[:, 1]
-
-    return vcyl
-
-
-def eirene_flux_to_velocity(mesh, density, poloidal_flux, radial_flux, parallel_velocity, b_field_cylindrical):
-    """
-    Calculates velocities of neutral particles using Eirene particle fluxes defined at cell centre.
-
-    :param SOLPSMesh mesh: SOLPS simulation mesh.
-    :param ndarray density: Density of atoms in m-3. Must be 3 dimensiona array of
-                            shape (num_atoms, mesh.ny, mesh.nx).
-    :param ndarray poloidal_flux: Poloidal flux of atoms in m-2 s-1. Must be a 3 dimensional array of
-                                  shape (num_atoms, mesh.ny, mesh.nx).
-    :param ndarray radial_flux: Radial flux of atoms in m-2 s-1. Must be a 3 dimensional array of
-                                shape (num_atoms, mesh.ny, mesh.nx).
-    :param ndarray parallel_velocity: Parallel velocity of atoms in m/s. Must be a 3 dimensional
-                                      array of shape (num_atoms, mesh.ny, mesh.nx).
-                                      Parallel velocity is a velocity projection on magnetic
-                                      field direction.
-    :param ndarray b_field_cylindrical: Magnetic field in Cartesian (R, phi, Z) coordinates.
-                                        Must be a 3 dimensional array of shape (3, mesh.ny, mesh.nx).
-
-    :return: Velocities of atoms in (R, phi, Z) coordinates as a 4-dimensional ndarray of
-             shape (mesh.nx, mesh.ny, num_atoms, 3)
-    """
-    density = np.array(density, dtype=np.float64, copy=False)
-    poloidal_flux = np.array(poloidal_flux, dtype=np.float64, copy=False)
-    radial_flux = np.array(radial_flux, dtype=np.float64, copy=False)
-    parallel_velocity = np.array(parallel_velocity, dtype=np.float64, copy=False)
-    b_field_cylindrical = np.array(b_field_cylindrical, dtype=np.float64, copy=False)
-
-    nx = mesh.nx  # poloidal
-    ny = mesh.ny  # radial
-    ns = density.shape[0]  # number of neutral atoms
-
-    _check_shape('density', density, (ns, ny, nx))
-    _check_shape('poloidal_flux', poloidal_flux, (ns, ny, nx))
-    _check_shape('radial_flux', radial_flux, (ns, ny, nx))
-    _check_shape('parallel_velocity', parallel_velocity, (ns, ny, nx))
-    _check_shape('b_field_cylindrical', b_field_cylindrical, (3, ny, nx))
-
-    # Obtaining velocity
-    poloidal_velocity = np.divide(poloidal_flux, density, out=np.zeros_like(density), where=(density > 0))
-    radial_velocity = np.divide(radial_flux, density, out=np.zeros_like(density), where=(density > 0))
-
-    vcyl = np.zeros((ns, 3, ny, nx))  # velocities in cylindrical coordinates
-
-    # Projection of velocity on RZ-plane
-    vcyl[:, (0, 2)] = (poloidal_velocity[:, None] * mesh.poloidal_basis_vector[None] + radial_velocity[:, None] * mesh.radial_basis_vector[None])
-
-    # Obtaining toroidal velocity
-    b = b_field_cylindrical[None]
-    bmagn = np.sqrt((b * b).sum(1))
-    vcyl[:, 1] = (parallel_velocity * bmagn - vcyl[:, 0] * b[:, 0] - vcyl[:, 2] * b[:, 2]) / b[:, 1]
-
-    return vcyl
