@@ -395,7 +395,7 @@ class Eirene:
 
     @elosm.setter
     def elosm(self, value):
-        self._check_dimensions(value, 1)
+        self._check_dimensions(value, self._nm)
         self._elosm = value
 
     @property
@@ -409,7 +409,7 @@ class Eirene:
 
     @edism.setter
     def edism(self, value):
-        self._check_dimensions(value, 1)
+        self._check_dimensions(value, self._nm)
         self._edism = value
 
     @property

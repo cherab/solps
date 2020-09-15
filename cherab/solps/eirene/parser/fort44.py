@@ -57,17 +57,13 @@ def assign_fort44_parser(file_version):
     :param file_version: Fort44 file version from the file header.
     :return: Parsing function object
     """
-    fort44_supported_versions = (
-        20081111,
-        20130210,
-        20170328,
-    )
 
-    if file_version not in fort44_supported_versions:
-        print("Warning! Version {} of fort.44 file has not been tested with this parser.".format(file_version))
+    fort44_parser_library = {
+        20170328: load_fort44_2017,
+        20130210: load_fort44_2013
+    }
 
-    if file_version >= 20170328:
-
-        return load_fort44_2017
-
-    return load_fort44_2013
+    if file_version in fort44_parser_library.keys():
+        return fort44_parser_library[file_version]
+    else:
+        raise ValueError("Can't read version {} fort.44 file".format(file_version))
