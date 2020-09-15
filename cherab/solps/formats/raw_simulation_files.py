@@ -151,10 +151,11 @@ def load_solps_from_raw_output(simulation_path, debug=False):
         sim.neutral_temperature = ta / elementary_charge
 
         # Obtaining total radiation
-        eradt_raw_data = eirene.eradt.sum(0)
-        total_radiation = np.zeros((ny, nx))
-        total_radiation[1:-1, 1:-1] = eradt_raw_data
-        sim.total_radiation = total_radiation
+        if eirene.eradt is not None:
+            eradt_raw_data = eirene.eradt.sum(0)
+            total_radiation = np.zeros((ny, nx))
+            total_radiation[1:-1, 1:-1] = eradt_raw_data
+            sim.total_radiation = total_radiation
 
         sim.eirene_simulation = eirene
 

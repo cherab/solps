@@ -152,7 +152,10 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     except (mdsExceptions.TreeNNF, TypeError):
         neurad = 0
 
-    sim.total_radiation = (linerad + brmrad + neurad) / mesh.vol
+    total_rad = linerad + brmrad + neurad
+
+    if isinstance(total_rad, np.ndarray):
+        sim.total_radiation = total_rad / mesh.vol
 
     return sim
 
