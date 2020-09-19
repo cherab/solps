@@ -20,13 +20,11 @@
 import numpy as np
 from scipy.io import netcdf
 from scipy import constants
-from raysect.core.math.function.float import Discrete2DMesh
 
-from cherab.core.math.mappers import AxisymmetricMapper
 from cherab.core.atomic.elements import lookup_isotope
 
 from cherab.solps.mesh_geometry import SOLPSMesh
-from cherab.solps.solps_plasma import SOLPSSimulation, prefer_element
+from cherab.solps.solps_plasma import SOLPSSimulation, prefer_element, eirene_flux_to_velocity, b2_flux_to_velocity
 
 
 def load_solps_from_balance(balance_filename):
@@ -53,8 +51,8 @@ def load_solps_from_balance(balance_filename):
         ns = am.size
         for i in range(ns):
             symbol = ''.join([b.decode('utf-8').strip(' 0123456789+-') for b in species_names[i]])  # also strips isotope number
-            if symbol != 'D' and symbol != 'T':
-                isotope = lookup_isotope(symbol, number=am[i])  # will through an error for D or T
+            if symbol not in ('D', 'T'):
+                isotope = lookup_isotope(symbol, number=am[i])  # will throw an error for D or T
                 species = prefer_element(isotope)  # Prefer Element over Isotope if the mass number is the same
             else:
                 species = lookup_isotope(symbol)
@@ -71,7 +69,7 @@ def load_solps_from_balance(balance_filename):
         ##########################
         # Magnetic field vectors #
         sim.b_field = fhandle.variables['bb'].data.copy()[:3]
-        # sim.b_field_cylindrical is created authomatically
+        # sim.b_field_cylindrical is created automatically
 
         # Load electron species
         sim.electron_temperature = fhandle.variables['te'].data.copy() / el_charge
@@ -87,24 +85,18 @@ def load_solps_from_balance(balance_filename):
         parallel_velocity = fhandle.variables['ua'].data.copy()
 
         # Load poloidal and radial particle fluxes for velocity calculation
-        if 'fna' in fhandle.variables:
-            fna = fhandle.variables['fna'].data.copy()
-            poloidal_flux = fna[:, 0]
-            radial_flux = fna[:, 1]
-        elif 'fnax' in fhandle.variables and 'fnay' in fhandle.variables:
-            poloidal_flux = fhandle.variables['fnax'].data.copy()
-            radial_flux = fhandle.variables['fnay'].data.copy()
+        if 'fna_tot' in fhandle.variables:
+            fna = fhandle.variables['fna_tot'].data.copy()
+            # Obtaining velocity from B2 flux
+            sim.velocities_cylindrical = b2_flux_to_velocity(sim, fna[:, 0], fna[:, 1], parallel_velocity)
         else:  # trying to obtain particle flux from components
             fna = 0
             for key in fhandle.variables.keys():
                 if 'fna_' in key:
                     fna += fhandle.variables[key].data.copy()
-            if isinstance(fna, np.ndarray):
-                poloidal_flux = fna[:, 0]
-                radial_flux = fna[:, 1]
-
-        # Obtaining velocity from B2 flux
-        sim.b2_flux_to_velocity(poloidal_flux, radial_flux, parallel_velocity)
+            if fna is not 0:
+                # Obtaining velocity from B2 flux
+                sim.velocities_cylindrical = b2_flux_to_velocity(sim, fna[:, 0], fna[:, 1], parallel_velocity)
 
         # Obtaining additional data from EIRENE and replacing data for neutrals
         if 'dab2' in fhandle.variables:
@@ -122,7 +114,16 @@ def load_solps_from_balance(balance_filename):
                 neutral_radial_flux = fhandle.variables['rfluxa'].data.copy()[:, :ny, :nx]
 
                 if np.any(neutral_poloidal_flux) or np.any(neutral_radial_flux):
-                    sim.eirene_flux_to_velocity(neutral_poloidal_flux, neutral_radial_flux, parallel_velocity[neutral_indx])
+                    neutral_velocities = eirene_flux_to_velocity(sim, neutral_poloidal_flux, neutral_radial_flux,
+                                                                 parallel_velocity[neutral_indx])
+                    if sim.velocities_cylindrical is not None:
+                        sim.velocities_cylindrical[neutral_indx] = neutral_velocities
+                        sim.velocities_cylindrical = sim.velocities_cylindrical  # Updating sim.velocities
+                    else:
+                        # No 'fna_*' keys in balance.nc and b2 species velocities are not set
+                        velocities_cylindrical = np.zeros((len(sim.species_list, 3, ny, nx)))
+                        velocities_cylindrical[neutral_indx] = neutral_velocities
+                        sim.velocities_cylindrical = velocities_cylindrical
 
             # Obtaining neutral temperatures
             if 'tab2' in fhandle.variables:
@@ -143,7 +144,7 @@ def load_solps_from_balance(balance_filename):
 
             # Ionisation rate from EIRENE, needed to calculate the energy loss to overcome the ionisation potential of atoms
             if 'eirene_mc_papl_sna_bal' in fhandle.variables:
-                tmp = np.sum(fhandle.variables['eirene_mc_papl_sna_bal'].data, axis=(0))[1]
+                tmp = np.sum(fhandle.variables['eirene_mc_papl_sna_bal'].data, axis=0)[1]
                 eirene_potential_loss = rydberg_energy * tmp * el_charge / mesh.vol
 
             # This will be negative (energy sink); multiply by -1
@@ -163,8 +164,8 @@ def load_solps_from_balance(balance_filename):
             # Save total radiated power to the simulation object
             total_rad = rydberg_energy * el_charge * potential_loss - b2_ploss
 
-    if isinstance(total_rad, np.ndarray):
-        sim.total_radiation = total_rad
+        if total_rad is not 0:
+            sim.total_radiation = total_rad
 
     return sim
 

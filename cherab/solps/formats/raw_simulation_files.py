@@ -20,15 +20,13 @@
 import os
 import numpy as np
 from scipy.constants import elementary_charge
-from raysect.core.math.function.float import Discrete2DMesh
 
-from cherab.core.math.mappers import AxisymmetricMapper
 from cherab.core.atomic.elements import lookup_isotope
 
 from cherab.solps.eirene import load_fort44_file
 from cherab.solps.b2.parse_b2_block_file import load_b2f_file
 from cherab.solps.mesh_geometry import SOLPSMesh
-from cherab.solps.solps_plasma import SOLPSSimulation, prefer_element
+from cherab.solps.solps_plasma import SOLPSSimulation, prefer_element, eirene_flux_to_velocity, b2_flux_to_velocity
 
 
 # Code based on script by Felix Reimold (2016)
@@ -46,7 +44,7 @@ def load_solps_from_raw_output(simulation_path, debug=False):
     """
 
     if not os.path.isdir(simulation_path):
-        RuntimeError("Simulation_path must be a valid directory.")
+        raise RuntimeError("simulation_path must be a valid directory.")
 
     mesh_file_path = os.path.join(simulation_path, 'b2fgmtry')
     b2_state_file = os.path.join(simulation_path, 'b2fstate')
@@ -55,10 +53,10 @@ def load_solps_from_raw_output(simulation_path, debug=False):
     if not os.path.isfile(mesh_file_path):
         raise RuntimeError("No B2 b2fgmtry file found in SOLPS output directory.")
 
-    if not(os.path.isfile(b2_state_file)):
-        RuntimeError("No B2 b2fstate file found in SOLPS output directory.")
+    if not os.path.isfile(b2_state_file):
+        raise RuntimeError("No B2 b2fstate file found in SOLPS output directory.")
 
-    if not(os.path.isfile(eirene_fort44_file)):
+    if not os.path.isfile(eirene_fort44_file):
         print("Warning! No EIRENE fort.44 file found in SOLPS output directory. Assuming B2 stand-alone simulation.")
         b2_standalone = True
     else:
@@ -94,7 +92,7 @@ def load_solps_from_raw_output(simulation_path, debug=False):
 
     # Load magnetic field
     sim.b_field = geom_data_dict['bb'][:3]
-    # sim.b_field_cylindrical is created authomatically
+    # sim.b_field_cylindrical is created automatically
 
     # Load electron species
     sim.electron_temperature = mesh_data_dict['te'] / elementary_charge
@@ -114,7 +112,7 @@ def load_solps_from_raw_output(simulation_path, debug=False):
     radial_flux = mesh_data_dict['fna'][1::2]
 
     # Obtaining velocity from B2 flux
-    sim.b2_flux_to_velocity(poloidal_flux, radial_flux, parallel_velocity)
+    sim.velocities_cylindrical = b2_flux_to_velocity(sim, poloidal_flux, radial_flux, parallel_velocity)
 
     if not b2_standalone:
         # Obtaining additional data from EIRENE and replacing data for neutrals
@@ -137,7 +135,9 @@ def load_solps_from_raw_output(simulation_path, debug=False):
             neutral_parallel_velocity = np.zeros((len(neutral_indx), ny, nx))  # must be zero outside EIRENE grid
             neutral_parallel_velocity[:, 1:-1, 1:-1] = parallel_velocity[neutral_indx, 1:-1, 1:-1]
 
-            sim.eirene_flux_to_velocity(neutral_poloidal_flux, neutral_radial_flux, neutral_parallel_velocity)
+            sim.velocities_cylindrical[neutral_indx] = eirene_flux_to_velocity(sim, neutral_poloidal_flux, neutral_radial_flux,
+                                                                               neutral_parallel_velocity)
+            sim.velocities_cylindrical = sim.velocities_cylindrical  # Updating sim.velocities
 
         # Obtaining neutral temperatures
         ta = np.zeros((eirene.ta.shape[0], ny, nx))

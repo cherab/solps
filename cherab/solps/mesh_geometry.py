@@ -17,13 +17,11 @@
 # See the Licence for the specific language governing permissions and limitations
 # under the Licence.
 
-# External imports
-# from collections import namedtuple
-
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
+
 
 class SOLPSMesh:
     """
@@ -43,25 +41,25 @@ class SOLPSMesh:
                              must be 3 dimensional. Example shape is (4 x 32 x 98).
                              In SOLPS notation: left/right - poloidal prev./next, bottom/top - radial prev./next.
                              Cell indexing starts with 0 and -1 means no neighbour.
-    :param ndarray neighbix: Array of radial indeces of neighbouring cells in order: left, bottom, right, top,
+    :param ndarray neighbiy: Array of radial indeces of neighbouring cells in order: left, bottom, right, top,
                              must be 3 dimensional. Example shape is (4 x 32 x 98).
     """
 
-    # TODO Make neighbix and neighbix optional in the future, as they can be reconstructed with _tri_index_loopup
+    # TODO Make neighbix and neighbix optional in the future, as they can be reconstructed with _triangle_to_grid_map
 
     def __init__(self, r, z, vol, neighbix, neighbiy):
 
         if r.shape != z.shape:
-            raise ValueError('Shape of r array: %s mismatch the shape of z array: %s.' % (r.shape, z.shape))
+            raise ValueError('Shape of r array: {0} mismatch the shape of z array: {1}.'.format(r.shape, z.shape))
 
         if vol.shape != r.shape[1:]:
-            raise ValueError('Shape of vol array: %s mismatch the grid dimentions: %s.' % (vol.shape, r.shape[1:]))
+            raise ValueError('Shape of vol array: {0} mismatch the grid dimentions: {1}.'.format(vol.shape, r.shape[1:]))
 
         if neighbix.shape != r.shape:
-            raise ValueError('Shape of neighbix array must be %s, but it is  %s.' % (r.shape, neighbix.shape))
+            raise ValueError('Shape of neighbix array must be {0}, but it is  {1}.'.format(r.shape, neighbix.shape))
 
         if neighbiy.shape != r.shape:
-            raise ValueError('Shape of neighbix array must be %s, but it is  %s.' % (r.shape, neighbiy.shape))
+            raise ValueError('Shape of neighbix array must be {0}, but it is  {}.'.format(r.shape, neighbiy.shape))
 
         self._cr = r.sum(0) / 4.
         self._cz = z.sum(0) / 4.
@@ -102,17 +100,9 @@ class SOLPSMesh:
         self._poloidal_area = np.pi * (r[2] + r[0]) * vec_magn
 
         # For convertion from Cartesian to poloidal
-        # TODO Make it work with trianle cells
+        # TODO Make it work with triangle cells
         self._inv_det = 1. / (self._poloidal_basis_vector[0] * self._radial_basis_vector[1] -
                               self._poloidal_basis_vector[1] * self._radial_basis_vector[0])
-
-        # Test for basis vector calculation
-        # plt.quiver(self._cr[0], self._cz[0], self._radial_basis_vector[0, 0], self._radial_basis_vector[1, 0], color='k')
-        # plt.quiver(self._cr[0], self._cz[0], self._poloidal_basis_vector[0, 0], self._poloidal_basis_vector[1, 0], color='r')
-        # plt.quiver(self._cr[-1], self._cz[-1], self._radial_basis_vector[0, -1], self._radial_basis_vector[1, -1], color='k')
-        # plt.quiver(self._cr[-1], self._cz[-1], self._poloidal_basis_vector[0, -1], self._poloidal_basis_vector[1, -1], color='r')
-        # plt.gca().set_aspect('equal')
-        # plt.show()
 
         # Finding unique vertices
         vertices = np.array([r.flatten(), z.flatten()]).T
@@ -313,12 +303,5 @@ class SOLPSMesh:
         p = PatchCollection(patches, facecolors='none', edgecolors='b')
         ax.add_collection(p)
         ax.axis('equal')
-
-        # Code for plotting vessel geometry if available
-        # if self.vessel is not None:
-        #     for i in range(self.vessel.shape[0]):
-        #         ax.plot([self.vessel[i, 0], self.vessel[i, 2]], [self.vessel[i, 1], self.vessel[i, 3]], 'k')
-        #     for i in range(self.vessel.shape[0]):
-        #         ax.plot([self.vessel[i, 0], self.vessel[i, 2]], [self.vessel[i, 1], self.vessel[i, 3]], 'or')
 
         return ax

@@ -16,7 +16,6 @@
 # See the Licence for the specific language governing permissions and limitations
 # under the Licence.
 
-import numpy as np
 from cherab.solps.eirene import Eirene
 from cherab.solps.eirene.parser.utility import read_block44
 

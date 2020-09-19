@@ -19,16 +19,15 @@
 
 import pickle
 import numpy as np
-import matplotlib.pyplot as plt
-from scipy.constants import atomic_mass, electron_mass, elementary_charge
+from scipy.constants import atomic_mass, electron_mass
 
 # Raysect imports
-from raysect.core import translate, Point3D, Vector3D, Node, AffineMatrix3D
+from raysect.core import translate, Vector3D
 from raysect.primitive import Cylinder
-from raysect.optical import Spectrum
 
 # CHERAB core imports
 from cherab.core import Plasma, Species, Maxwellian
+from cherab.core.math.function import ConstantVector3D
 from cherab.core.math.mappers import AxisymmetricMapper, VectorAxisymmetricMapper
 from cherab.core.atomic.elements import lookup_isotope, lookup_element
 
@@ -91,9 +90,9 @@ class SOLPSSimulation:
         self._b_field_cylindrical = None
         self._b_field_cylindrical_f2d = None
         self._b_field_cartesian = None
-        self._eirene_model = None  # what is this for?
-        self._b2_model = None  # what is this for?
-        self._eirene = None  # do we need this in SOLPSSimulation?
+        self._eirene_model = None
+        self._b2_model = None
+        self._eirene = None
 
     @property
     def mesh(self):
@@ -110,6 +109,14 @@ class SOLPSSimulation:
         :return:
         """
         return self._species_list
+
+    @property
+    def neutral_list(self):
+        """
+        Tuple of species elements in the form (species name, charge).
+        :return:
+        """
+        return self._neutral_list
 
     @property
     def electron_temperature(self):
@@ -438,7 +445,7 @@ class SOLPSSimulation:
         Dictionary of VectorFunction2D interpolators for species velocities
         in cylindrical coordinates.
         Accessed by species index or species_list elements.
-        E.g., elocities_cylindrical_f2d[1] or elocities_cylindrical_f2d[('deuterium', 1))].
+        E.g., velocities_cylindrical_f2d[1] or velocities_cylindrical_f2d[('deuterium', 1))].
         Each entry returns a vector of species velocity at a given point (R, Z).
         :return:
         """
@@ -450,7 +457,7 @@ class SOLPSSimulation:
         Dictionary of VectorFunction3D interpolators for species velocities
         in Cartesian coordinates.
         Accessed by species index or species_list elements.
-        E.g., elocities_cylindrical_f3d[1] or elocities_cylindrical_f3d[('deuterium', 1))].
+        E.g., velocities_cartesian[1] or velocities_cartesian[('deuterium', 1))].
         Each entry returns a vector of species velocity at a given point (x, y, z).
         :return:
         """
@@ -477,13 +484,11 @@ class SOLPSSimulation:
         Array of shape (ny, nx).
 
         This is not calculated from the CHERAB emission models, instead it comes from the SOLPS output data.
-        Is calculated from the sum of all integrated line emission and all Bremmstrahlung. The signals used are 'RQRAD'
-        and 'RQBRM'. Final output is in W/str?
+        Is calculated from the sum of all integrated line emission and all Bremmstrahlung.
+        The signals used are 'RQRAD' and 'RQBRM'. Final output is in W m-3.
         """
-        if self._total_radiation is None:
-            raise RuntimeError("Total radiation not available for this simulation.")
-        else:
-            return self._total_radiation
+
+        return self._total_radiation
 
     @property
     def total_radiation_f2d(self):
@@ -491,10 +496,8 @@ class SOLPSSimulation:
         Function2D interpolator for total radiation.
         Returns total radiation at a given point (R, Z).
         """
-        if self._total_radiation_f2d is None:
-            raise RuntimeError("Total radiation not available for this simulation.")
-        else:
-            return self._total_radiation_f2d
+
+        return self._total_radiation_f2d
 
     @property
     def total_radiation_f3d(self):
@@ -502,10 +505,8 @@ class SOLPSSimulation:
         Function3D interpolator for total radiation.
         Returns total radiation at a given point (x, y, z).
         """
-        if self._total_radiation_f3d is None:
-            raise RuntimeError("Total radiation not available for this simulation.")
-        else:
-            return self._total_radiation_f3d
+
+        return self._total_radiation_f3d
 
     @total_radiation.setter
     def total_radiation(self, value):
@@ -521,10 +522,8 @@ class SOLPSSimulation:
         Magnetic B field in poloidal coordinates (e_pol, e_rad, e_tor) at each mesh cell.
         Array of shape (3, ny, nx): [0, :, :] - poloidal, [1, :, :] - radial, [2, :, :] - toroidal.
         """
-        if self._b_field is None:
-            raise RuntimeError("Magnetic field not available for this simulation.")
-        else:
-            return self._b_field
+
+        return self._b_field
 
     @b_field.setter
     def b_field(self, value):
@@ -547,10 +546,8 @@ class SOLPSSimulation:
         Magnetic B field in poloidal coordinates (R, phi, Z) at each mesh cell.
         Array of shape (3, ny, nx): [0, :, :] - R, [1, :, :] - phi, [2, :, :] - Z.
         """
-        if self._b_field_cylindrical is None:
-            raise RuntimeError("Magnetic field not available for this simulation.")
-        else:
-            return self._b_field_cylindrical
+
+        return self._b_field_cylindrical
 
     @property
     def b_field_cylindrical_f2d(self):
@@ -558,21 +555,17 @@ class SOLPSSimulation:
         VectorFunction2D interpolator for magnetic B field in cylindrical coordinates.
         Returns a vector of magnetic field at a given point (R, Z).
         """
-        if self._b_field_cylindrical_f2d is None:
-            raise RuntimeError("Magnetic field not available for this simulation.")
-        else:
-            return self._b_field_cylindrical_f2d
+
+        return self._b_field_cylindrical_f2d
 
     @property
     def b_field_cartesian(self):
         """
-        VectorFunction2D interpolator for magnetic B field in Cartesian coordinates.
+        VectorFunction3D interpolator for magnetic B field in Cartesian coordinates.
         Returns a vector of magnetic field at a given point (x, y, z).
         """
-        if self._b_field_cartesian is None:
-            raise RuntimeError("Magnetic field not available for this simulation.")
-        else:
-            return self._b_field_cartesian
+
+        return self._b_field_cartesian
 
     @b_field_cylindrical.setter
     def b_field_cylindrical(self, value):
@@ -596,10 +589,8 @@ class SOLPSSimulation:
 
         :rtype: Eirene
         """
-        if self._eirene is None:
-            raise RuntimeError("EIRENE simulation data not available for this SOLPS simulation.")
-        else:
-            return self._eirene
+
+        return self._eirene
 
     @eirene_simulation.setter
     def eirene_simulation(self, value):
@@ -607,152 +598,6 @@ class SOLPSSimulation:
             raise ValueError('Attribute "eirene_simulation" must be an Eirene instance.')
 
         self._eirene = value
-
-    def b2_flux_to_velocity(self, poloidal_flux, radial_flux, parallel_velocity):
-        """
-        Sets velocities of all species using B2 particle fluxes defined at cell faces.
-
-        :param ndarray poloidal_flux: Poloidal flux of atoms in s-1. Must be a 3 dimensional array of
-                                      shape (num_atoms, mesh.ny, mesh.nx).
-        :param ndarray radial_flux: Radial flux of atoms in s-1. Must be a 3 dimensional array of
-                                    shape (num_atoms, mesh.ny, mesh.nx).
-        :param ndarray parallel_velocity: Parallel velocity of atoms in m/s. Must be a 3 dimensional
-                                          array of shape (num_atoms, mesh.ny, mesh.nx).
-                                          Parallel velocity is a velocity projection on magnetic
-                                          field direction.
-        """
-        if self.b_field_cylindrical is None:
-            raise RuntimeError('Attribute "b_field_cylindrical" is not set.')
-        if self.species_density is None:
-            raise RuntimeError('Attribute "species_density" is not set.')
-
-        mesh = self.mesh
-        b = self.b_field_cylindrical
-
-        poloidal_flux = np.array(poloidal_flux, dtype=np.float64, copy=False)
-        radial_flux = np.array(radial_flux, dtype=np.float64, copy=False)
-        parallel_velocity = np.array(parallel_velocity, dtype=np.float64, copy=False)
-
-        nx = mesh.nx  # poloidal
-        ny = mesh.ny  # radial
-        ns = len(self.species_list)  # number of species
-
-        _check_shape('poloidal_flux', poloidal_flux, (ns, ny, nx))
-        _check_shape('radial_flux', radial_flux, (ns, ny, nx))
-        _check_shape('parallel_velocity', parallel_velocity, (ns, ny, nx))
-
-        poloidal_area = mesh.poloidal_area
-        radial_area = mesh.radial_area
-        leftix = mesh.neighbix[0]  # poloidal prev.
-        leftiy = mesh.neighbiy[0]
-        bottomix = mesh.neighbix[1]  # radial prev.
-        bottomiy = mesh.neighbiy[1]
-        rightix = mesh.neighbix[2]   # poloidal next.
-        rightiy = mesh.neighbiy[2]
-        topix = mesh.neighbix[3]  # radial next.
-        topiy = mesh.neighbiy[3]
-
-        # Converting s-1 --> m-2 s-1
-        poloidal_flux = np.divide(poloidal_flux, poloidal_area, out=np.zeros_like(poloidal_flux), where=poloidal_area > 0)
-        radial_flux = np.divide(radial_flux, radial_area, out=np.zeros_like(radial_flux), where=radial_area > 0)
-
-        # Obtaining left velocity
-        dens_neighb = self.species_density[:, leftiy, leftix]  # density in the left neighbouring cell
-        has_neighbour = ((leftix > -1) * (leftiy > -1))  # check if has left neighbour
-        neg_flux = (poloidal_flux < 0) * (self.species_density > 0)  # will use density in this cell if flux is negative
-        pos_flux = (poloidal_flux > 0) * (dens_neighb > 0) * has_neighbour  # will use density in neighbouring cell if flux is positive
-        velocity_left = np.divide(poloidal_flux, self.species_density, out=np.zeros((ns, ny, nx)), where=neg_flux)
-        velocity_left = np.divide(poloidal_flux, dens_neighb, out=velocity_left, where=pos_flux)
-        poloidal_face_normal = mesh.radial_basis_vector[[1, 0]]
-        poloidal_face_normal[1] *= -1
-        velocity_left = velocity_left[:, None] * poloidal_face_normal  # to vector in RZ
-
-        # Obtaining bottom velocity
-        dens_neighb = self.species_density[:, bottomiy, bottomix]
-        has_neighbour = ((bottomix > -1) * (bottomiy > -1))
-        neg_flux = (radial_flux < 0) * (self.species_density > 0)
-        pos_flux = (poloidal_flux > 0) * (dens_neighb > 0) * has_neighbour
-        velocity_bottom = np.divide(radial_flux, self.species_density, out=np.zeros((ns, ny, nx)), where=neg_flux)
-        velocity_bottom = np.divide(radial_flux, dens_neighb, out=velocity_bottom, where=pos_flux)
-        radial_face_normal = mesh.poloidal_basis_vector[[1, 0]]
-        radial_face_normal[0] *= -1
-        velocity_bottom = velocity_bottom[:, None] * radial_face_normal  # to RZ
-
-        # Obtaining right and top velocities
-        velocity_right = velocity_left[:, :, rightiy, rightix]
-        velocity_right[:, :, (rightix < 0) + (rightiy < 0)] = 0
-
-        velocity_top = velocity_bottom[:, :, topiy, topix]
-        velocity_top[:, :, (topix < 0) + (topiy < 0)] = 0
-
-        vcyl = np.zeros((ns, 3, ny, nx))  # velocities in cylindrical coordinates
-
-        # Projection of velocity on RZ-plane
-        vcyl[:, [0, 2]] = 0.25 * (velocity_bottom + velocity_left + velocity_top + velocity_right)
-
-        # Obtaining toroidal velocity
-        bmagn = np.sqrt((b * b).sum(0))
-        vcyl[:, 1] = (parallel_velocity * bmagn - vcyl[:, 0] * b[0] - vcyl[:, 2] * b[2]) / b[1]
-
-        self.velocities_cylindrical = vcyl
-
-    def eirene_flux_to_velocity(self, poloidal_flux, radial_flux, parallel_velocity):
-        """
-        Sets velocities of neutral atoms using Eirene particle fluxes defined at cell centre.
-
-        :param ndarray poloidal_flux: Poloidal flux of atoms in m-2 s-1. Must be a 3 dimensional array of
-                                      shape (num_atoms, mesh.ny, mesh.nx).
-        :param ndarray radial_flux: Radial flux of atoms in m-2 s-1. Must be a 3 dimensional array of
-                                    shape (num_atoms, mesh.ny, mesh.nx).
-        :param ndarray parallel_velocity: Parallel velocity of atoms in m/s. Must be a 3 dimensional
-                                          array of shape (num_atoms, mesh.ny, mesh.nx).
-                                          Parallel velocity is a velocity projection on magnetic
-                                          field direction.
-        """
-        if self.b_field_cylindrical is None:
-            raise RuntimeError('Attribute "b_field_cylindrical" is not set.')
-        if self.species_density is None:
-            raise RuntimeError('Attribute "species_density" is not set.')
-
-        mesh = self.mesh
-        b = self.b_field_cylindrical
-
-        poloidal_flux = np.array(poloidal_flux, dtype=np.float64, copy=False)
-        radial_flux = np.array(radial_flux, dtype=np.float64, copy=False)
-        parallel_velocity = np.array(parallel_velocity, dtype=np.float64, copy=False)
-
-        nx = mesh.nx  # poloidal
-        ny = mesh.ny  # radial
-        ns = len(self._neutral_list)  # number of neutral atoms
-
-        _check_shape('poloidal_flux', poloidal_flux, (ns, ny, nx))
-        _check_shape('radial_flux', radial_flux, (ns, ny, nx))
-        _check_shape('parallel_velocity', parallel_velocity, (ns, ny, nx))
-
-        neutral_indx = [k for k, sp in enumerate(self.species_list) if sp[1] == 0]
-        density = self.species_density[neutral_indx, :]
-
-        # Obtaining velocity
-        poloidal_velocity = np.divide(poloidal_flux, density, out=np.zeros_like(density), where=(density > 0))
-        radial_velocity = np.divide(radial_flux, density, out=np.zeros_like(density), where=(density > 0))
-
-        vcyl = np.zeros((ns, 3, ny, nx))  # velocities in cylindrical coordinates
-
-        # Projection of velocity on RZ-plane
-        vcyl[:, [0, 2]] = (poloidal_velocity[:, None] * mesh.poloidal_basis_vector + radial_velocity[:, None] * mesh.radial_basis_vector)
-
-        # Obtaining toroidal velocity
-        bmagn = np.sqrt((b * b).sum(0))
-        vcyl[:, 1] = (parallel_velocity * bmagn - vcyl[:, 0] * b[0] - vcyl[:, 2] * b[2]) / b[1]
-
-        if self.velocities_cylindrical is not None:   # we need to update self._velocities also
-            vcyl_all = self.velocities_cylindrical
-        else:
-            vcyl_all = np.zeros(len(self.species_list, 3, ny, nx))
-
-        vcyl_all[neutral_indx] = vcyl
-
-        self.velocities_cylindrical = vcyl_all
 
     def __getstate__(self):
         state = {
@@ -802,140 +647,6 @@ class SOLPSSimulation:
         pickle.dump(self.__getstate__(), file_handle)
         file_handle.close()
 
-    # def plot_electrons(self):
-    #     """ Make a plot of the electron temperature and density in the SOLPS mesh plane. """
-    #
-    #     me = self.mesh.mesh_extent
-    #     xl, xu = (me['minr'], me['maxr'])
-    #     yl, yu = (me['minz'], me['maxz'])
-    #
-    #     te_samples = np.zeros((500, 500))
-    #     ne_samples = np.zeros((500, 500))
-    #
-    #     xrange = np.linspace(xl, xu, 500)
-    #     yrange = np.linspace(yl, yu, 500)
-    #
-    #     plasma = self.plasma
-    #     for i, x in enumerate(xrange):
-    #         for j, y in enumerate(yrange):
-    #             ne_samples[j, i] = plasma.electron_distribution.density(x, 0.0, y)
-    #             te_samples[j, i] = plasma.electron_distribution.effective_temperature(x, 0.0, y)
-    #
-    #     plt.figure()
-    #     plt.imshow(ne_samples, extent=[xl, xu, yl, yu], origin='lower')
-    #     plt.colorbar()
-    #     plt.xlim(xl, xu)
-    #     plt.ylim(yl, yu)
-    #     plt.title("electron density")
-    #     plt.figure()
-    #     plt.imshow(te_samples, extent=[xl, xu, yl, yu], origin='lower')
-    #     plt.colorbar()
-    #     plt.xlim(xl, xu)
-    #     plt.ylim(yl, yu)
-    #     plt.title("electron temperature")
-    #
-    # def plot_species_density(self, species, ionisation):
-    #     """
-    #     Make a plot of the requested species density in the SOLPS mesh plane.
-    #
-    #     :param Element species: The species to plot.
-    #     :param int ionisation: The charge state of the species to plot.
-    #     """
-    #
-    #     species_dist = self.plasma.get_species(species, ionisation)
-    #
-    #     me = self.mesh.mesh_extent
-    #     xl, xu = (me['minr'], me['maxr'])
-    #     yl, yu = (me['minz'], me['maxz'])
-    #     species_samples = np.zeros((500, 500))
-    #
-    #     xrange = np.linspace(xl, xu, 500)
-    #     yrange = np.linspace(yl, yu, 500)
-    #
-    #     for i, x in enumerate(xrange):
-    #         for j, y in enumerate(yrange):
-    #             species_samples[j, i] = species_dist.distribution.density(x, 0.0, y)
-    #
-    #     plt.figure()
-    #     plt.imshow(species_samples, extent=[xl, xu, yl, yu], origin='lower')
-    #     plt.colorbar()
-    #     plt.xlim(xl, xu)
-    #     plt.ylim(yl, yu)
-    #     plt.title("Species {} - stage {} - density".format(species.name, ionisation))
-    #
-    # def plot_pec_emission_lines(self, emission_lines, title="", vmin=None, vmax=None, log=False):
-    #     """
-    #     Make a plot of the given PEC emission lines
-    #
-    #     :param list emission_lines: List of PEC emission lines.
-    #     :param str title: The title of the plot.
-    #     :param float vmin: The minimum value for clipping the plots (default=None).
-    #     :param float vmax: The maximum value for clipping the plots (default=None).
-    #     :param bool log: Toggle a log plot for the data (default=False).
-    #     """
-    #
-    #     me = self.mesh.mesh_extent
-    #     xl, xu = (me['minr'], me['maxr'])
-    #     yl, yu = (me['minz'], me['maxz'])
-    #     emission_samples = np.zeros((500, 500))
-    #
-    #     xrange = np.linspace(xl, xu, 500)
-    #     yrange = np.linspace(yl, yu, 500)
-    #
-    #     for i, x in enumerate(xrange):
-    #         for j, y in enumerate(yrange):
-    #             for emitter in emission_lines:
-    #                 emission_samples[j, i] += emitter.emission(Point3D(x, 0.0, y), Vector3D(0, 0, 0), Spectrum(350, 700, 800)).total()
-    #
-    #     if log:
-    #         emission_samples = np.log(emission_samples)
-    #     plt.figure()
-    #     plt.imshow(emission_samples, extent=[xl, xu, yl, yu], origin='lower', vmin=vmin, vmax=vmax)
-    #     plt.colorbar()
-    #     plt.xlim(xl, xu)
-    #     plt.ylim(yl, yu)
-    #     plt.title(title)
-    #
-    # def plot_radiated_power(self):
-    #     """
-    #     Make a plot of the given PEC emission lines
-    #
-    #     :param list emission_lines: List of PEC emission lines.
-    #     :param str title: The title of the plot.
-    #     """
-    #
-    #     mesh = self.mesh
-    #     me = mesh.mesh_extent
-    #     total_rad = self.total_radiation
-    #
-    #     xl, xu = (me['minr'], me['maxr'])
-    #     yl, yu = (me['minz'], me['maxz'])
-    #
-    #     # tri_index_lookup = mesh.triangle_index_lookup
-    #
-    #     emission_samples = np.zeros((500, 500))
-    #
-    #     xrange = np.linspace(xl, xu, 500)
-    #     yrange = np.linspace(yl, yu, 500)
-    #
-    #     for i, x in enumerate(xrange):
-    #         for j, y in enumerate(yrange):
-    #
-    #             try:
-    #                 # k, l = mesh.triangle_to_grid_map[int(tri_index_lookup(x, y))]
-    #                 # emission_samples[i, j] = total_rad[k, l]
-    #                 emission_samples[j, i] = total_rad(x, 0, y)
-    #
-    #             except ValueError:
-    #                 continue
-    #
-    #     plt.figure()
-    #     plt.imshow(emission_samples, extent=[xl, xu, yl, yu], origin='lower')
-    #     plt.colorbar()
-    #     plt.xlim(xl, xu)
-    #     plt.ylim(yl, yu)
-    #     plt.title("Radiated Power (W/m^3)")
-
     def create_plasma(self, parent=None, transform=None, name=None):
         """
         Make a CHERAB plasma object from this SOLPS simulation.
@@ -947,6 +658,16 @@ class SOLPSSimulation:
         :rtype: Plasma
         """
 
+        # Checking if the minimal required data is available to create a plasma object
+        if self.electron_density_f3d is None:
+            raise RuntimeError("Unable to create plasma object: electron density is not set.")
+        if self.electron_temperature_f3d is None:
+            raise RuntimeError("Unable to create plasma object: electron temperature is not set.")
+        if self.species_density_f3d is None:
+            raise RuntimeError("Unable to create plasma object: species density is not set.")
+        if self.ion_temperature_f3d is None:
+            raise RuntimeError("Unable to create plasma object: ion temperature is not set.")
+
         mesh = self.mesh
         name = name or "SOLPS Plasma"
         plasma = Plasma(parent=parent, transform=transform, name=name)
@@ -955,19 +676,19 @@ class SOLPSSimulation:
         plasma.geometry = Cylinder(radius, height)
         plasma.geometry_transform = translate(0, 0, mesh.mesh_extent['minz'])
 
-        try:
-            plasma.b_field = self.b_field_cartesian
-        except RuntimeError:
+        if self.b_field_cartesian is None:
             print('Warning! No magnetic field data available for this simulation.')
+        else:
+            plasma.b_field = self.b_field_cartesian
 
         # Create electron species
         if self.electron_velocities_cartesian is None:
             print('Warning! No electron velocity data available for this simulation.')
-            electron_velocity = lambda x, y, z: Vector3D(0, 0, 0)
+            electron_velocity = ConstantVector3D(Vector3D(0, 0, 0))
         else:
             electron_velocity = self.electron_velocities_cartesian
         plasma.electron_distribution = Maxwellian(self.electron_density_f3d, self.electron_temperature_f3d, electron_velocity, electron_mass)
- 
+
         if self.velocities_cartesian is None:
             print('Warning! No species velocities data available for this simulation.')
 
@@ -988,7 +709,7 @@ class SOLPSSimulation:
             if self.velocities_cartesian is not None:
                 velocity = self.velocities_cartesian[k]
             else:
-                velocity = lambda x, y, z: Vector3D(0, 0, 0)
+                velocity = ConstantVector3D(Vector3D(0, 0, 0))
 
             if charge or self.neutral_temperature is None:  # ions or neutral atoms (neutral temperature is not available)
                 distribution = Maxwellian(self.species_density_f3d[k], self.ion_temperature_f3d, velocity,
@@ -1006,7 +727,7 @@ class SOLPSSimulation:
 
 def _check_shape(name, value, shape):
     if value.shape != shape:
-        raise ValueError('Shape of "%s": %s mismatch the shape of SOLPS grid: %s.' % (name, value.shape, shape))
+        raise ValueError('Shape of "{0}": {1} mismatch the shape of SOLPS grid: {2}.'.format(name, value.shape, shape))
 
 
 def prefer_element(isotope):
@@ -1018,3 +739,153 @@ def prefer_element(isotope):
         return isotope.element
 
     return isotope
+
+
+def b2_flux_to_velocity(sim, poloidal_flux, radial_flux, parallel_velocity):
+    """
+    Calculates velocities of all species at cell centres using B2 particle fluxes defined
+    at cell faces.
+
+    :param SOLPSSimulation sim: SOLPSSimulation instance.
+    :param ndarray poloidal_flux: Poloidal flux of species in s-1. Must be a 3 dimensional array of
+                                  shape (num_species, mesh.ny, mesh.nx).
+    :param ndarray radial_flux: Radial flux of species in s-1. Must be a 3 dimensional array of
+                                shape (num_species, mesh.ny, mesh.nx).
+    :param ndarray parallel_velocity: Parallel velocity of species in m/s. Must be a 3 dimensional
+                                      array of shape (num_species, mesh.ny, mesh.nx).
+                                      Parallel velocity is a velocity projection on magnetic
+                                      field direction.
+
+    :return ndarray: Velocities of all species in cylindrical coordinates.
+                     Array of shape (num_species, 3, mesh.ny, mesh.nx).
+    """
+    if sim.b_field_cylindrical is None:
+        raise RuntimeError('Attribute "b_field_cylindrical" is not set.')
+    if sim.species_density is None:
+        raise RuntimeError('Attribute "species_density" is not set.')
+
+    mesh = sim.mesh
+    b = sim.b_field_cylindrical
+
+    poloidal_flux = np.array(poloidal_flux, dtype=np.float64, copy=False)
+    radial_flux = np.array(radial_flux, dtype=np.float64, copy=False)
+    parallel_velocity = np.array(parallel_velocity, dtype=np.float64, copy=False)
+
+    nx = mesh.nx  # poloidal
+    ny = mesh.ny  # radial
+    ns = len(sim.species_list)  # number of species
+
+    _check_shape('poloidal_flux', poloidal_flux, (ns, ny, nx))
+    _check_shape('radial_flux', radial_flux, (ns, ny, nx))
+    _check_shape('parallel_velocity', parallel_velocity, (ns, ny, nx))
+
+    poloidal_area = mesh.poloidal_area
+    radial_area = mesh.radial_area
+    leftix = mesh.neighbix[0]  # poloidal prev.
+    leftiy = mesh.neighbiy[0]
+    bottomix = mesh.neighbix[1]  # radial prev.
+    bottomiy = mesh.neighbiy[1]
+    rightix = mesh.neighbix[2]   # poloidal next.
+    rightiy = mesh.neighbiy[2]
+    topix = mesh.neighbix[3]  # radial next.
+    topiy = mesh.neighbiy[3]
+
+    # Converting s-1 --> m-2 s-1
+    poloidal_flux = np.divide(poloidal_flux, poloidal_area, out=np.zeros_like(poloidal_flux), where=poloidal_area > 0)
+    radial_flux = np.divide(radial_flux, radial_area, out=np.zeros_like(radial_flux), where=radial_area > 0)
+
+    # Obtaining left velocity
+    dens_neighb = sim.species_density[:, leftiy, leftix]  # density in the left neighbouring cell
+    has_neighbour = ((leftix > -1) * (leftiy > -1))  # check if has left neighbour
+    neg_flux = (poloidal_flux < 0) * (sim.species_density > 0)  # will use density in this cell if flux is negative
+    pos_flux = (poloidal_flux > 0) * (dens_neighb > 0) * has_neighbour  # will use density in neighbouring cell if flux is positive
+    velocity_left = np.divide(poloidal_flux, sim.species_density, out=np.zeros((ns, ny, nx)), where=neg_flux)
+    velocity_left = np.divide(poloidal_flux, dens_neighb, out=velocity_left, where=pos_flux)
+    poloidal_face_normal = mesh.radial_basis_vector[[1, 0]]
+    poloidal_face_normal[1] *= -1
+    velocity_left = velocity_left[:, None] * poloidal_face_normal  # to vector in RZ
+
+    # Obtaining bottom velocity
+    dens_neighb = sim.species_density[:, bottomiy, bottomix]
+    has_neighbour = ((bottomix > -1) * (bottomiy > -1))
+    neg_flux = (radial_flux < 0) * (sim.species_density > 0)
+    pos_flux = (poloidal_flux > 0) * (dens_neighb > 0) * has_neighbour
+    velocity_bottom = np.divide(radial_flux, sim.species_density, out=np.zeros((ns, ny, nx)), where=neg_flux)
+    velocity_bottom = np.divide(radial_flux, dens_neighb, out=velocity_bottom, where=pos_flux)
+    radial_face_normal = mesh.poloidal_basis_vector[[1, 0]]
+    radial_face_normal[0] *= -1
+    velocity_bottom = velocity_bottom[:, None] * radial_face_normal  # to RZ
+
+    # Obtaining right and top velocities
+    velocity_right = velocity_left[:, :, rightiy, rightix]
+    velocity_right[:, :, (rightix < 0) + (rightiy < 0)] = 0
+
+    velocity_top = velocity_bottom[:, :, topiy, topix]
+    velocity_top[:, :, (topix < 0) + (topiy < 0)] = 0
+
+    vcyl = np.zeros((ns, 3, ny, nx))  # velocities in cylindrical coordinates
+
+    # Projection of velocity on RZ-plane
+    vcyl[:, [0, 2]] = 0.25 * (velocity_bottom + velocity_left + velocity_top + velocity_right)
+
+    # Obtaining toroidal velocity
+    bmagn = np.sqrt((b * b).sum(0))
+    vcyl[:, 1] = (parallel_velocity * bmagn - vcyl[:, 0] * b[0] - vcyl[:, 2] * b[2]) / b[1]
+
+    return vcyl
+
+
+def eirene_flux_to_velocity(sim, poloidal_flux, radial_flux, parallel_velocity):
+    """
+    Calculates velocities of neutral atoms using Eirene particle fluxes defined at cell centre.
+
+    :param SOLPSSimulation sim: SOLPSSimulation instance.
+    :param ndarray poloidal_flux: Poloidal flux of atoms in m-2 s-1. Must be a 3 dimensional array of
+                                  shape (num_atoms, mesh.ny, mesh.nx).
+    :param ndarray radial_flux: Radial flux of atoms in m-2 s-1. Must be a 3 dimensional array of
+                                shape (num_atoms, mesh.ny, mesh.nx).
+    :param ndarray parallel_velocity: Parallel velocity of atoms in m/s. Must be a 3 dimensional
+                                      array of shape (num_atoms, mesh.ny, mesh.nx).
+                                      Parallel velocity is a velocity projection on magnetic
+                                      field direction.
+
+    :return ndarray: Velocities of neutral atoms in cylindrical coordinates.
+                     Array of shape (num_atoms, 3, mesh.ny, mesh.nx).
+    """
+    if sim.b_field_cylindrical is None:
+        raise RuntimeError('Attribute "b_field_cylindrical" is not set.')
+    if sim.species_density is None:
+        raise RuntimeError('Attribute "species_density" is not set.')
+
+    mesh = sim.mesh
+    b = sim.b_field_cylindrical
+
+    poloidal_flux = np.array(poloidal_flux, dtype=np.float64, copy=False)
+    radial_flux = np.array(radial_flux, dtype=np.float64, copy=False)
+    parallel_velocity = np.array(parallel_velocity, dtype=np.float64, copy=False)
+
+    nx = mesh.nx  # poloidal
+    ny = mesh.ny  # radial
+    ns = len(sim.neutral_list)  # number of neutral atoms
+
+    _check_shape('poloidal_flux', poloidal_flux, (ns, ny, nx))
+    _check_shape('radial_flux', radial_flux, (ns, ny, nx))
+    _check_shape('parallel_velocity', parallel_velocity, (ns, ny, nx))
+
+    neutral_indx = [k for k, sp in enumerate(sim.species_list) if sp[1] == 0]
+    density = sim.species_density[neutral_indx, :]
+
+    # Obtaining velocity
+    poloidal_velocity = np.divide(poloidal_flux, density, out=np.zeros_like(density), where=(density > 0))
+    radial_velocity = np.divide(radial_flux, density, out=np.zeros_like(density), where=(density > 0))
+
+    vcyl = np.zeros((ns, 3, ny, nx))  # velocities in cylindrical coordinates
+
+    # Projection of velocity on RZ-plane
+    vcyl[:, [0, 2]] = (poloidal_velocity[:, None] * mesh.poloidal_basis_vector + radial_velocity[:, None] * mesh.radial_basis_vector)
+
+    # Obtaining toroidal velocity
+    bmagn = np.sqrt((b * b).sum(0))
+    vcyl[:, 1] = (parallel_velocity * bmagn - vcyl[:, 0] * b[0] - vcyl[:, 2] * b[2]) / b[1]
+
+    return vcyl

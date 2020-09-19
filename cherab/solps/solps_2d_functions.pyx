@@ -114,7 +114,8 @@ cdef class SOLPSFunction2D(Function2D):
         if self._kdtree.is_contained(new_point2d(x, y)):
 
             triangle_id = self._kdtree.triangle_id
-            ix, iy = self._triangle_to_grid_map_mv[triangle_id, :]
+            ix = self._triangle_to_grid_map_mv[triangle_id, 0]
+            iy = self._triangle_to_grid_map_mv[triangle_id, 1]
             return self._grid_data_mv[ix, iy]
 
         return 0.0
@@ -204,7 +205,8 @@ cdef class SOLPSVectorFunction2D(VectorFunction2D):
         if self._kdtree.is_contained(new_point2d(x, y)):
 
             triangle_id = self._kdtree.triangle_id
-            ix, iy = self._triangle_to_grid_map_mv[triangle_id, :]
+            ix = self._triangle_to_grid_map_mv[triangle_id, 0]
+            iy = self._triangle_to_grid_map_mv[triangle_id, 1]
             vx = self._grid_vectors_mv[0, ix, iy]
             vy = self._grid_vectors_mv[1, ix, iy]
             vz = self._grid_vectors_mv[2, ix, iy]
