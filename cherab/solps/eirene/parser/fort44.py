@@ -48,7 +48,7 @@ def load_fort44_file(file_path, debug=False):
 
         # Look up file parsing function and call it to obtain for44 block and update data dictionary
     parser = assign_fort44_parser(data["version"])
-    return parser(file_path)
+    return parser(file_path, debug)
 
 
 def assign_fort44_parser(file_version):

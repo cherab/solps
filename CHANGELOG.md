@@ -1,6 +1,23 @@
 Project Changelog
 =================
 
+Release 1.2.0 (19 Sept 2020)
+----------------------------
+
+* Added support for Raysect 0.7.
+* Replaced unsafe SOLPSFunction3D and SOLPSVectorFunction3D with safe SOLPSFunction2D and SOLPSVectorFunction2D (use AxisymmetricMapper(SOLPSFunction2D) and VectorAxisymmetricMapper(SOLPSVectorFunction2D) for 3D).
+* Added correct initialisation of properties in SOLPSMesh and SOLPSSimulation.
+* Added new attributes to SOLPSMesh for basis vectors, cell connection areas, indices of neighbouring cells and new methods to_poloidal() and to_cartesian() for converting vectors defined on a grid from/to (poloidal, radial)/(R, Z).
+* Fixed incorrect calculation of cell basis vectors.
+* Inverted the indexing of data arrays and made all arrays row-major.
+* Added electron_velocities and neutral_listproperties to SOLPSSimulation.
+* Added 2D and 3D interpolators for plasma parameters to SOLPSSimulation.
+* Added parsing of additional quantities in load_solps_from_mdsplus(), load_solps_from_raw_output() and load_solps_from_balance().
+* Added support for B2 stand-alone simulations.
+* Added support for arbitrary plasma chemical composition.
+* Fixed incorrect calculation of velocities.
+* Other small fixes and improvements.
+
 Release 1.1.0 (30 July 2020)
 ----------------------------
 

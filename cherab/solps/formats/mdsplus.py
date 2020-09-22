@@ -17,20 +17,13 @@
 # See the Licence for the specific language governing permissions and limitations
 # under the Licence.
 
-import re
 import numpy as np
-from math import sqrt
-from raysect.core import Point2D
-from raysect.core.math.function.float import Discrete2DMesh
 
-from cherab.core.math.mappers import AxisymmetricMapper
+from cherab.core.atomic.elements import lookup_isotope
 from cherab.solps.mesh_geometry import SOLPSMesh
-from cherab.solps.solps_plasma import SOLPSSimulation
+from cherab.solps.solps_plasma import SOLPSSimulation, prefer_element, eirene_flux_to_velocity, b2_flux_to_velocity
 
 
-_SPECIES_REGEX = '([a-zA-z]+)\+?([0-9]+)'
-
-# TODO: violates interface of SOLPSSimulation.... puts numpy arrays in the object where they should be function2D
 def load_solps_from_mdsplus(mds_server, ref_number):
     """
     Load a SOLPS simulation from a MDSplus server.
@@ -40,119 +33,100 @@ def load_solps_from_mdsplus(mds_server, ref_number):
     :rtype: SOLPSSimulation
     """
 
-    from MDSplus import Connection as MDSConnection
+    from MDSplus import Connection as MDSConnection, MdsException
 
     # Setup connection to server
     conn = MDSConnection(mds_server)
     conn.openTree('solps', ref_number)
 
     # Load SOLPS mesh geometry and lookup arrays
-    mesh = load_mesh_from_mdsplus(conn)
-    sim = SOLPSSimulation(mesh)
-    ni = mesh.nx
-    nj = mesh.ny
+    mesh = load_mesh_from_mdsplus(conn, MdsException)
+
+    # Load each plasma species in simulation
+    ns = conn.get(r'\SOLPS::TOP.IDENT.NS').data()  # Number of species
+    zn = conn.get(r'\SOLPS::TOP.SNAPSHOT.GRID.ZN').data().astype(np.int)  # Nuclear charge
+    am = np.round(conn.get(r'\SOLPS::TOP.SNAPSHOT.GRID.AM').data()).astype(np.int)  # Atomic mass number
+    charge = conn.get(r'\SOLPS::TOP.SNAPSHOT.GRID.ZA').data().astype(np.int)   # Ionisation/charge
+
+    species_list = []
+    neutral_indx = []
+    for i in range(ns):
+        isotope = lookup_isotope(zn[i], number=am[i])
+        species = prefer_element(isotope)  # Prefer Element over Isotope if the mass number is the same
+        species_list.append((species.name, charge[i]))
+        if charge[i] == 0:
+            neutral_indx.append(i)
+
+    sim = SOLPSSimulation(mesh, species_list)
+    nx = mesh.nx
+    ny = mesh.ny
 
     ##########################
     # Magnetic field vectors #
-    raw_b_field = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.B').data(), 0, 2)
-    b_field_vectors_cartesian = np.zeros((ni, nj, 3))
-    b_field_vectors = np.zeros((ni, nj, 3))
-    for i in range(ni):
-        for j in range(nj):
-            bparallel = raw_b_field[i, j, 0]
-            bradial = raw_b_field[i, j, 1]
-            btoroidal = raw_b_field[i, j, 2]
-            b_field_vectors[i, j] = (bparallel, bradial, btoroidal)
+    sim.b_field = conn.get(r'\SOLPS::TOP.SNAPSHOT.B').data()[:3]
+    # sim.b_field_cylindrical is created automatically
 
-            pv = mesh.poloidal_grid_basis[i, j, 0]  # parallel basis vector
-            rv = mesh.poloidal_grid_basis[i, j, 1]  # radial basis vector
+    # Load electron temperature and density
+    sim.electron_temperature = conn.get(r'\SOLPS::TOP.SNAPSHOT.TE').data()
+    sim.electron_density = conn.get(r'\SOLPS::TOP.SNAPSHOT.NE').data()
 
-            bx = pv.x * bparallel + rv.x * bradial  # component of B along poloidal x
-            by = pv.y * bparallel + rv.y * bradial  # component of B along poloidal y
-            b_field_vectors_cartesian[i, j] = (bx, btoroidal, by)
-    sim._b_field_vectors = b_field_vectors
-    sim._b_field_vectors_cartesian = b_field_vectors_cartesian
+    # Load ion temperature
+    sim.ion_temperature = conn.get(r'\SOLPS::TOP.SNAPSHOT.TI').data()
 
-    # Load electron species
-    sim._electron_temperature = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.TE').data(), 0, 1)  # (32, 98) => (98, 32)
-    sim._electron_density = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.NE').data(), 0, 1)  # (32, 98) => (98, 32)
+    # Load species density
+    sim.species_density = conn.get(r'\SOLPS::TOP.SNAPSHOT.NA').data()
 
-    ############################
-    # Load each plasma species #
-    ############################
+    # Load parallel velocity
+    parallel_velocity = conn.get(r'\SOLPS::TOP.SNAPSHOT.UA').data()
 
-    # Master list of species, e.g. ['D0', 'D+1', 'C0', 'C+1', ...
-    species_list = conn.get('\SOLPS::TOP.IDENT.SPECIES').data()
+    # Load poloidal and radial particle fluxes for velocity calculation
+    poloidal_flux = conn.get(r'\SOLPS::TOP.SNAPSHOT.FNAX').data()
+    radial_flux = conn.get(r'\SOLPS::TOP.SNAPSHOT.FNAY').data()
+
+    # B2 fluxes are defined between cells, so correcting array shapes if needed
+    if poloidal_flux.shape[2] == nx - 1:
+        poloidal_flux = np.concatenate((np.zeros((ns, ny, 1)), poloidal_flux), axis=2)
+
+    if radial_flux.shape[1] == ny - 1:
+        radial_flux = np.concatenate((np.zeros((ns, 1, nx)), radial_flux), axis=1)
+
+    # Setting velocities from B2 flux
+    sim.velocities_cylindrical = b2_flux_to_velocity(sim, poloidal_flux, radial_flux, parallel_velocity)
+
+    # Obtaining additional data from EIRENE and replacing data for neutrals
+
     try:
-        species_list = species_list.decode('UTF-8')
-    except AttributeError:  # Already a string
-        pass
-    sim._species_list = species_list.split()
-    sim._species_density = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.NA').data(), 0, 2)
-    sim._rad_par_flux = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.FNAY').data(), 0, 2)  # radial particle flux
-    sim._radial_area = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.SY').data(), 0, 1)  # radial contact area
+        # Replace the species densities
+        neutral_density = conn.get(r'\SOLPS::TOP.SNAPSHOT.DAB2').data()  # this will throw a TypeError is neutral_density is not an array
+        # We can update the data without re-initialising interpolators because they use pointers
+        sim.species_density[neutral_indx] = neutral_density[:]
 
-    # Load the neutral atom density from B2
-    dab2 = conn.get('\SOLPS::TOP.SNAPSHOT.DAB2').data()
-    if isinstance(dab2, np.ndarray):
-        sim._b2_neutral_densities = np.swapaxes(dab2, 0, 2)
+    except (MdsException, TypeError):
+        print("Warning! This is B2 stand-alone simulation.")
+        b2_standalone = True
+    else:
+        b2_standalone = False
 
-    sim._velocities_parallel = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.UA').data(), 0, 2)
-    sim._velocities_radial = np.zeros((ni, nj, len(sim.species_list)))
-    sim._velocities_toroidal = np.zeros((ni, nj, len(sim.species_list)))
-    sim._velocities_cartesian = np.zeros((ni, nj, len(sim.species_list), 3), dtype=np.float64)
+    if not b2_standalone:
+        # Obtaining neutral atom velocity from EIRENE flux
+        # Note that if the output for fluxes was turned off, PFLA and RFLA' are all zeros
+        try:
+            neutral_poloidal_flux = conn.get(r'\SOLPS::TOP.SNAPSHOT.PFLA').data()[:]
+            neutral_radial_flux = conn.get(r'\SOLPS::TOP.SNAPSHOT.RFLA').data()[:]
 
-    ################################################
-    # Calculate the species' velocity distribution #
-    b2_neutral_i = 0  # counter for B2 neutrals
-    for k, sp in enumerate(sim.species_list):
+            if np.any(neutral_poloidal_flux) or np.any(neutral_radial_flux):
+                sim.velocities_cylindrical[neutral_indx] = eirene_flux_to_velocity(sim, neutral_poloidal_flux, neutral_radial_flux,
+                                                                                   parallel_velocity[neutral_indx])
+                sim.velocities_cylindrical = sim.velocities_cylindrical  # Updating sim.velocities
 
-        # Identify the species based on its symbol
-        symbol, charge = re.match(_SPECIES_REGEX, sp).groups()
-        charge = int(charge)
+        except (MdsException, TypeError):
+            pass
 
-        # If neutral and B" atomic density available,  use B2 density, otherwise use fluid species density.
-        if charge == 0 and (sim._b2_neutral_densities is not None):
-            species_dens_data = sim.b2_neutral_densities[:, :, b2_neutral_i]
-            b2_neutral_i += 1
-        else:
-            species_dens_data = sim.species_density[:, :, k]
-
-        for i in range(ni):
-            for j in range(nj):
-                # Load grid basis vectors
-                pv = mesh.poloidal_grid_basis[i, j, 0]  # parallel basis vector
-                rv = mesh.poloidal_grid_basis[i, j, 1]  # radial basis vector
-
-                # calculate field component ratios for velocity conversion
-                bparallel = b_field_vectors[i, j, 0]
-                btoroidal = b_field_vectors[i, j, 2]
-                bplane = sqrt(bparallel**2 + btoroidal**2)
-                parallel_to_toroidal_ratio = bparallel * btoroidal / (bplane**2)
-
-                # Calculate toroidal and radial velocity components
-                v_parallel = sim.velocities_parallel[i, j, k]  # straight from SOLPS 'UA' variable
-                v_toroidal = v_parallel * parallel_to_toroidal_ratio
-                sim.velocities_toroidal[i, j, k] = v_toroidal
-                # Special case for edge of mesh, no radial velocity expected.
-                try:
-                    if species_dens_data[i, j] == 0:
-                        v_radial = 0.0
-                    else:
-                        v_radial = sim.radial_particle_flux[i, j, k] / sim.radial_area[i, j] / species_dens_data[i, j]
-                except IndexError:
-                    v_radial = 0.0
-                sim.velocities_radial[i, j, k] = v_radial
-
-                # Convert velocities to cartesian coordinates
-                vx = pv.x * v_parallel + rv.x * v_radial  # component of v along poloidal x
-                vy = pv.y * v_parallel + rv.y * v_radial  # component of v along poloidal y
-                sim.velocities_cartesian[i, j, k, :] = (vx, v_toroidal, vy)
-
-    # Make Mesh Interpolator function for inside/outside mesh test.
-    inside_outside_data = np.ones(mesh.num_tris)
-    inside_outside = AxisymmetricMapper(Discrete2DMesh(mesh.vertex_coords, mesh.triangles, inside_outside_data, limit=False))
-    sim._inside_mesh = inside_outside
+        # Obtaining neutral temperatures
+        try:
+            sim.neutral_temperature = conn.get(r'\SOLPS::TOP.SNAPSHOT.TAB2').data()[:]
+        except (MdsException, TypeError):
+            pass
 
     ###############################
     # Load extra data from server #
@@ -160,95 +134,76 @@ def load_solps_from_mdsplus(mds_server, ref_number):
 
     ####################
     # Integrated power #
-    vol = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.VOL').data(), 0, 1)  # TODO - this should be a mesh property
-    linerad = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.RQRAD').data(), 0, 2)
-    linerad = np.sum(linerad, axis=2)
-    brmrad = np.swapaxes(conn.get('\SOLPS::TOP.SNAPSHOT.RQBRM').data(), 0, 2)
-    brmrad = np.sum(brmrad, axis=2)
-    neurad = conn.get('\SOLPS::TOP.SNAPSHOT.ENEUTRAD').data()
-    if neurad is not None:  # need to cope with fact that neurad may not be present!!!
-        if len(neurad.shape) == 3:
-            neurad = np.swapaxes(np.abs(np.sum(neurad, axis=0)), 0, 1)
-        else:
-            neurad = np.swapaxes(np.abs(neurad), 0, 1)
-    else:
-        neurad = np.zeros(brmrad.shape)
+    try:
+        linerad = np.sum(conn.get(r'\SOLPS::TOP.SNAPSHOT.RQRAD').data()[:], axis=0)
+    except (MdsException, TypeError):
+        linerad = 0
 
-    total_rad_data = np.zeros(vol.shape)
-    ni, nj = vol.shape
-    for i in range(ni):
-        for j in range(nj):
-            total_rad_data[i, j] = (linerad[i, j] + brmrad[i, j] + neurad[i, j]) / vol[i, j]
-    sim._total_rad = total_rad_data
+    try:
+        brmrad = np.sum(conn.get(r'\SOLPS::TOP.SNAPSHOT.RQBRM').data()[:], axis=0)
+    except (MdsException, TypeError):
+        brmrad = 0
+
+    try:
+        eneutrad = conn.get(r'\SOLPS::TOP.SNAPSHOT.ENEUTRAD').data()[:]
+        if np.ndim(eneutrad) == 3:
+            neurad = np.abs(np.sum(eneutrad, axis=0))
+        else:
+            neurad = np.abs(eneutrad)
+    except (MdsException, TypeError):
+        neurad = 0
+
+    total_rad = linerad + brmrad + neurad
+
+    if total_rad is not 0:
+        sim.total_radiation = total_rad / mesh.vol
 
     return sim
 
 
-def load_mesh_from_mdsplus(mds_connection):
+def load_mesh_from_mdsplus(mds_connection, MdsException):
     """
     Load the SOLPS mesh geometry for a given MDSplus connection.
 
     :param mds_connection: MDSplus connection object. Already set to the SOLPS tree with pulse #ID.
+    :param mdsExceptions: MDSplus mdsExceptions module for error handling.
     """
 
     # Load the R, Z coordinates of the cell vertices, original coordinates are (4, 38, 98)
-    # re-arrange axes (4, 38, 98) => (98, 38, 4)
-    x = np.swapaxes(mds_connection.get('\TOP.SNAPSHOT.GRID:R').data(), 0, 2)
-    z = np.swapaxes(mds_connection.get('\TOP.SNAPSHOT.GRID:Z').data(), 0, 2)
+    r = mds_connection.get(r'\TOP.SNAPSHOT.GRID:R').data()
+    z = mds_connection.get(r'\TOP.SNAPSHOT.GRID:Z').data()
 
-    vol = np.swapaxes(mds_connection.get('\SOLPS::TOP.SNAPSHOT.VOL').data(), 0, 1)
+    vol = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.VOL').data()
+
+    # Loading neighbouring cell indices
+    neighbix = np.zeros(r.shape, dtype=np.int)
+    neighbiy = np.zeros(r.shape, dtype=np.int)
+
+    neighbix[0] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:LEFTIX').data().astype(np.int)
+    neighbix[1] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:BOTTOMIX').data().astype(np.int)
+    neighbix[2] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:RIGHTIX').data().astype(np.int)
+    neighbix[3] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:TOPIX').data().astype(np.int)
+
+    neighbiy[0] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:LEFTIY').data().astype(np.int)
+    neighbiy[1] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:BOTTOMIY').data().astype(np.int)
+    neighbiy[2] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:RIGHTIY').data().astype(np.int)
+    neighbiy[3] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:TOPIY').data().astype(np.int)
+
+    neighbix[neighbix == r.shape[2]] = -1
+    neighbiy[neighbiy == r.shape[1]] = -1
 
     # build mesh object
-    mesh = SOLPSMesh(x, z, vol)
+    mesh = SOLPSMesh(r, z, vol, neighbix, neighbiy)
 
     #############################
     # Add additional parameters #
     #############################
 
     # add the vessel geometry
-    mesh.vessel = mds_connection.get('\SOLPS::TOP.SNAPSHOT.GRID:VESSEL').data()
-
-    # Load the centre points of the grid cells.
-    cr = np.swapaxes(mds_connection.get('\TOP.SNAPSHOT.GRID:CR').data(), 0, 1)
-    cz = np.swapaxes(mds_connection.get('\TOP.SNAPSHOT.GRID:CZ').data(), 0, 1)
-    mesh._cr = cr
-    mesh._cz = cz
-
-    # Load cell basis vectors
-    nx = mesh.nx
-    ny = mesh.ny
-
-    cell_poloidal_basis = np.empty((nx, ny, 2), dtype=object)
-    for i in range(nx):
-        for j in range(ny):
-
-            # Work out cell's 2D parallel vector in the poloidal plane
-            if i == nx - 1:
-                # Special case for end of array, repeat previous calculation.
-                # This is because I don't have access to the gaurd cells.
-                xp_x = cr[i, j] - cr[i-1, j]
-                xp_y = cz[i, j] - cz[i-1, j]
-                norm = np.sqrt(xp_x**2 + xp_y**2)
-                cell_poloidal_basis[i, j, 0] = Point2D(xp_x/norm, xp_y/norm)
-            else:
-                xp_x = cr[i+1, j] - cr[i, j]
-                xp_y = cz[i+1, j] - cz[i, j]
-                norm = np.sqrt(xp_x**2 + xp_y**2)
-                cell_poloidal_basis[i, j, 0] = Point2D(xp_x/norm, xp_y/norm)
-
-            # Work out cell's 2D radial vector in the poloidal plane
-            if j == ny - 1:
-                # Special case for end of array, repeat previous calculation.
-                yr_x = cr[i, j] - cr[i, j-1]
-                yr_y = cz[i, j] - cz[i, j-1]
-                norm = np.sqrt(yr_x**2 + yr_y**2)
-                cell_poloidal_basis[i, j, 1] = Point2D(yr_x/norm, yr_y/norm)
-            else:
-                yr_x = cr[i, j+1] - cr[i, j]
-                yr_y = cz[i, j+1] - cz[i, j]
-                norm = np.sqrt(yr_x**2 + yr_y**2)
-                cell_poloidal_basis[i, j, 1] = Point2D(yr_x/norm, yr_y/norm)
-
-    mesh._poloidal_grid_basis = cell_poloidal_basis
+    try:
+        vessel = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:VESSEL').data()[:]
+        mesh.vessel = vessel
+    except (MdsException, TypeError):
+        pass
 
     return mesh

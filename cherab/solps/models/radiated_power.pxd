@@ -29,7 +29,7 @@ cdef class SOLPSTotalRadiatedPower(InhomogeneousVolumeEmitter):
 
     cdef:
         public double vertical_offset
-        Function3D total_rad, inside_simulation
+        Function3D total_rad
 
     cpdef Spectrum emission_function(self, Point3D point, Vector3D direction, Spectrum spectrum,
                                      World world, Ray ray, Primitive primitive,
