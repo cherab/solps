@@ -98,8 +98,8 @@ def load_fort44_2013(file_path, debug=False):
         eirene.emism = read_block44(file_handle, 1, nx, ny)  # Molecular Halpha Emission
 
         # Radiated power (elosm, edism, eradt)
-        eirene.elosm = read_block44(file_handle, 1, nx, ny)  # Power loss due to molecules (including dissociation)
-        eirene.edism = read_block44(file_handle, 1, nx, ny)  # Power loss due to molecule dissociation
+        eirene.elosm = read_block44(file_handle, nm, nx, ny)  # Power loss due to molecules (including dissociation)
+        eirene.edism = read_block44(file_handle, nm, nx, ny)  # Power loss due to molecule dissociation
         eirene.eradt = read_block44(file_handle, 1, nx, ny)  # Neutral radiated power
 
     return eirene

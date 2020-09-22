@@ -30,19 +30,15 @@ cimport cython
 
 cdef class SOLPSTotalRadiatedPower(InhomogeneousVolumeEmitter):
 
-    def __init__(self, object solps_simulation, double vertical_offset=0.0, step=0.01):
+    def __init__(self, Function3D total_radiation, double vertical_offset=0.0, step=0.01):
         super().__init__(NumericalIntegrator(step=step))
 
         self.vertical_offset = vertical_offset
-        self.inside_simulation = solps_simulation.inside_volume_mesh
-        self.total_rad = solps_simulation.total_radiation_volume
+        self.total_rad = total_radiation
 
-    def __call__(self, x, y , z):
+    def __call__(self, x, y, z):
 
-        if self.inside_simulation.evaluate(x, y, z) < 1.0:
-            return 0.0
-
-        return self.total_rad.evaluate(x, y, z)
+        return self.total_rad.evaluate(x, y, z)  # this returns 0 if outside the mesh
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
@@ -54,16 +50,18 @@ cdef class SOLPSTotalRadiatedPower(InhomogeneousVolumeEmitter):
         cdef:
             double offset_z, wvl_range
 
-        offset_z =  point.z + self.vertical_offset
-        if self.inside_simulation.evaluate(point.x, point.y, offset_z) < 1.0:
-            return spectrum
+        offset_z = point.z + self.vertical_offset
 
         wvl_range = ray.max_wavelength - ray.min_wavelength
         spectrum.samples_mv[:] = self.total_rad.evaluate(point.x, point.y, offset_z) / (4 * pi * wvl_range * spectrum.bins)
 
         return spectrum
 
+
 def solps_total_radiated_power(world, solps_simulation, step=0.01):
+    if solps_simulation.total_radiation_f3d is None:
+        raise RuntimeError('Total radiation is not available for this simulation.')
+
     mesh = solps_simulation.mesh
     outer_radius = mesh.mesh_extent['maxr']
     inner_radius = mesh.mesh_extent['minr'] - 0.001
@@ -71,9 +69,7 @@ def solps_total_radiated_power(world, solps_simulation, step=0.01):
     lower_z = mesh.mesh_extent['minz']
 
     main_plasma_cylinder = Cylinder(outer_radius, plasma_height, parent=world,
-                                    material=SOLPSTotalRadiatedPower(solps_simulation, vertical_offset=lower_z, step=step),
+                                    material=SOLPSTotalRadiatedPower(solps_simulation.total_radiation_f3d, vertical_offset=lower_z, step=step),
                                     transform=translate(0, 0, lower_z))
 
     return main_plasma_cylinder
-
-

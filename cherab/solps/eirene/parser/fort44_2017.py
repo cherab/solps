@@ -105,7 +105,7 @@ def load_fort44_2017(file_path, debug=False):
         _ = read_block44(file_handle, eirene.nm, eirene.nx, eirene.ny)  # Molecule particle source
 
         # Radiated power (elosm, edism, eradt)
-        eirene.edism = read_block44(file_handle, 1, eirene.nx, eirene.ny)  # Power loss due to molecule dissociation
+        eirene.edism = read_block44(file_handle, eirene.nm, eirene.nx, eirene.ny)  # Power loss due to molecule dissociation
 
         # Consume lines until eradt is reached
         while True:

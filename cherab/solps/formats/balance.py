@@ -19,139 +19,186 @@
 
 import numpy as np
 from scipy.io import netcdf
-from scipy.constants import elementary_charge
-from raysect.core.math import Discrete2DMesh
+from scipy import constants
 
-from cherab.core.math.mappers import AxisymmetricMapper
-from cherab.core.atomic.elements import hydrogen, deuterium, helium, beryllium, carbon, nitrogen, oxygen, neon, \
-    argon, krypton, xenon
+from cherab.core.atomic.elements import lookup_isotope
 
 from cherab.solps.mesh_geometry import SOLPSMesh
-from cherab.solps.solps_plasma import SOLPSSimulation
+from cherab.solps.solps_plasma import SOLPSSimulation, prefer_element, eirene_flux_to_velocity, b2_flux_to_velocity
 
-Q = elementary_charge
-
-# key is nuclear charge Z and atomic mass AMU
-_popular_species = {
-    (1, 2): deuterium,
-    (6, 12.0): carbon,
-    (2, 4.003): helium,
-    (7, 14.0): nitrogen,
-    (10, 20.180): neon,
-    (18, 39.948): argon,
-    (18, 40.0): argon,
-    (36, 83.798): krypton,
-    (54, 131.293): xenon
-}
 
 def load_solps_from_balance(balance_filename):
     """
     Load a SOLPS simulation from SOLPS balance.nc output files.
     """
 
+    el_charge = constants.elementary_charge
+    rydberg_energy = constants.value('Rydberg constant times hc in eV')
+
     # Open the file
-    fhandle = netcdf.netcdf_file(balance_filename, 'r')
+    with netcdf.netcdf_file(balance_filename, 'r') as fhandle:
 
-    # Load SOLPS mesh geometry
-    cr_x = fhandle.variables['crx'].data.copy()
-    cr_z = fhandle.variables['cry'].data.copy()
-    vol = fhandle.variables['vol'].data.copy()
+        # Load SOLPS mesh geometry
+        mesh = load_mesh_from_netcdf(fhandle)
 
-    # Re-arrange the array dimensions in the way CHERAB expects...
-    cr_x = np.moveaxis(cr_x, 0, -1)
-    cr_z = np.moveaxis(cr_z, 0, -1)
+        # Load each plasma species in simulation
 
-    # Create the SOLPS mesh
-    mesh = SOLPSMesh(cr_x, cr_z, vol)	
+        species_list = []
+        neutral_indx = []
+        am = np.round(fhandle.variables['am'].data).astype(np.int)  # Atomic mass number
+        charge = fhandle.variables['za'].data.astype(np.int)   # Ionisation/charge
+        species_names = fhandle.variables['species'].data.copy()
+        ns = am.size
+        for i in range(ns):
+            symbol = ''.join([b.decode('utf-8').strip(' 0123456789+-') for b in species_names[i]])  # also strips isotope number
+            if symbol not in ('D', 'T'):
+                isotope = lookup_isotope(symbol, number=am[i])  # will throw an error for D or T
+                species = prefer_element(isotope)  # Prefer Element over Isotope if the mass number is the same
+            else:
+                species = lookup_isotope(symbol)
 
-    sim = SOLPSSimulation(mesh)
+            # If we only need to populate species_list, there is probably a faster way to do this...
+            species_list.append((species.name, charge[i]))
+            if charge[i] == 0:
+                neutral_indx.append(i)
 
-    # TODO: add code to load SOLPS velocities and magnetic field from files
+        sim = SOLPSSimulation(mesh, species_list)
+        nx = mesh.nx
+        ny = mesh.ny
 
-    # Load electron species
-    sim._electron_temperature = fhandle.variables['te'].data.copy() / Q
-    sim._electron_density = fhandle.variables['ne'].data.copy()
+        ##########################
+        # Magnetic field vectors #
+        sim.b_field = fhandle.variables['bb'].data.copy()[:3]
+        # sim.b_field_cylindrical is created automatically
 
-    ##########################################
-    # Load each plasma species in simulation #
-    ##########################################
+        # Load electron species
+        sim.electron_temperature = fhandle.variables['te'].data.copy() / el_charge
+        sim.electron_density = fhandle.variables['ne'].data.copy()
 
-    sim._species_list = []
-    n_species = len(fhandle.variables['am'].data)
+        # Load ion temperature
+        sim.ion_temperature = fhandle.variables['ti'].data.copy() / el_charge
 
-    for i in range(n_species):
+        # Load species density
+        sim.species_density = fhandle.variables['na'].data.copy()
 
-        # Extract the nuclear charge	
-        if fhandle.variables['species'].data[i, 1] == b'D':
-            zn = 1
-        if fhandle.variables['species'].data[i, 1] == b'C':
-            zn = 6
-        if fhandle.variables['species'].data[i, 1] == b'N':
-            zn = 7
-        if fhandle.variables['species'].data[i, 1] == b'N' and fhandle.variables['species'].data[i, 2] == b'e':
-            zn = 10
-        if fhandle.variables['species'].data[i, 1] == b'A' and fhandle.variables['species'].data[i, 2] == b'r':
-            zn = 18
+        # Load parallel velocity
+        parallel_velocity = fhandle.variables['ua'].data.copy()
 
-        am = float(fhandle.variables['am'].data[i])  # Atomic mass
-        charge = int(fhandle.variables['za'].data[i])  # Ionisation/charge
-        species = _popular_species[(zn, am)]
+        # Load poloidal and radial particle fluxes for velocity calculation
+        if 'fna_tot' in fhandle.variables:
+            fna = fhandle.variables['fna_tot'].data.copy()
+            # Obtaining velocity from B2 flux
+            sim.velocities_cylindrical = b2_flux_to_velocity(sim, fna[:, 0], fna[:, 1], parallel_velocity)
+        else:  # trying to obtain particle flux from components
+            fna = 0
+            for key in fhandle.variables.keys():
+                if 'fna_' in key:
+                    fna += fhandle.variables[key].data.copy()
+            if fna is not 0:
+                # Obtaining velocity from B2 flux
+                sim.velocities_cylindrical = b2_flux_to_velocity(sim, fna[:, 0], fna[:, 1], parallel_velocity)
 
-        # If we only need to populate species_list, there is probably a faster way to do this...		
-        sim.species_list.append(species.symbol + str(charge))
+        # Obtaining additional data from EIRENE and replacing data for neutrals
+        if 'dab2' in fhandle.variables:
+            sim.species_density[neutral_indx] = fhandle.variables['dab2'].data.copy()[:, :ny, :nx]  # in case of large grid size
+            b2_standalone = False
+        else:
+            b2_standalone = True
 
-    tmp = fhandle.variables['na'].data.copy()
-    tmp = np.moveaxis(tmp, 0, -1)
-    sim._species_density = tmp
+        if not b2_standalone:
 
-    # Make Mesh Interpolator function for inside/outside mesh test.
-    inside_outside_data = np.ones(mesh.num_tris)
-    inside_outside = AxisymmetricMapper(Discrete2DMesh(mesh.vertex_coords, mesh.triangles, inside_outside_data, limit=False))
-    sim._inside_mesh = inside_outside
+            # Obtaining neutral atom velocity from EIRENE flux
+            # Note that if the output for fluxes was turned off, pfluxa and rfluxa' are all zeros
+            if 'pfluxa' in fhandle.variables and 'rfluxa' in fhandle.variables:
+                neutral_poloidal_flux = fhandle.variables['pfluxa'].data.copy()[:, :ny, :nx]
+                neutral_radial_flux = fhandle.variables['rfluxa'].data.copy()[:, :ny, :nx]
 
-    # Load the neutrals data
-    try:
-        D0_indx = sim.species_list.index('D0')
-    except ValueError:
-        D0_indx = None
+                if np.any(neutral_poloidal_flux) or np.any(neutral_radial_flux):
+                    neutral_velocities = eirene_flux_to_velocity(sim, neutral_poloidal_flux, neutral_radial_flux,
+                                                                 parallel_velocity[neutral_indx])
+                    if sim.velocities_cylindrical is not None:
+                        sim.velocities_cylindrical[neutral_indx] = neutral_velocities
+                        sim.velocities_cylindrical = sim.velocities_cylindrical  # Updating sim.velocities
+                    else:
+                        # No 'fna_*' keys in balance.nc and b2 species velocities are not set
+                        velocities_cylindrical = np.zeros((len(sim.species_list, 3, ny, nx)))
+                        velocities_cylindrical[neutral_indx] = neutral_velocities
+                        sim.velocities_cylindrical = velocities_cylindrical
 
-    # Replace the deuterium neutrals density (from the fluid neutrals model by default) with
-    # the values calculated by EIRENE - do the same for other neutrals?
-    if 'dab2' in fhandle.variables.keys():
-        if D0_indx is not None:
-            b2_len = np.shape(sim.species_density[:, :, D0_indx])[-1]
-            eirene_len = np.shape(fhandle.variables['dab2'].data)[-1]
-            sim.species_density[:, :, D0_indx] = fhandle.variables['dab2'].data[0, :, 0:b2_len-eirene_len]
+            # Obtaining neutral temperatures
+            if 'tab2' in fhandle.variables:
+                sim.neutral_temperature = fhandle.variables['tab2'].data.copy()[:, :ny, :nx]
 
-        eirene_run = True
-    else:
-        eirene_run = False
+            # Calculate the total radiated power
+            b2_ploss = 0
+            eirene_ecoolrate = 0
+            eirene_potential_loss = 0
 
-    # Calculate the total radiated power
-    if eirene_run:
-        # Total radiated power from B2, not including neutrals
-        b2_ploss = np.sum(fhandle.variables['b2stel_she_bal'].data, axis=0) / vol
+            # Total radiated power from B2, not including neutrals
+            if 'b2stel_she_bal' in fhandle.variables:
+                b2_ploss = np.sum(fhandle.variables['b2stel_she_bal'].data, axis=0) / mesh.vol
 
-        # Electron energy loss due to interactions with neutrals
-        if 'eirene_mc_eael_she_bal' in fhandle.variables.keys():
-            eirene_ecoolrate = np.sum(fhandle.variables['eirene_mc_eael_she_bal'].data, axis=0) / vol
+            # Electron energy loss due to interactions with neutrals
+            if 'eirene_mc_eael_she_bal' in fhandle.variables:
+                eirene_ecoolrate = np.sum(fhandle.variables['eirene_mc_eael_she_bal'].data, axis=0) / mesh.vol
 
-        # Ionisation rate from EIRENE, needed to calculate the energy loss to overcome the ionisation potential of atoms
-        if 'eirene_mc_papl_sna_bal' in fhandle.variables.keys():
-            eirene_potential_loss = 13.6 * np.sum(fhandle.variables['eirene_mc_papl_sna_bal'].data, axis=(0))[1, :, :] * Q / vol
+            # Ionisation rate from EIRENE, needed to calculate the energy loss to overcome the ionisation potential of atoms
+            if 'eirene_mc_papl_sna_bal' in fhandle.variables:
+                tmp = np.sum(fhandle.variables['eirene_mc_papl_sna_bal'].data, axis=0)[1]
+                eirene_potential_loss = rydberg_energy * tmp * el_charge / mesh.vol
 
-        # This will be negative (energy sink); multiply by -1
-        sim._total_rad = -1.0 * (b2_ploss + (eirene_ecoolrate-eirene_potential_loss))
+            # This will be negative (energy sink); multiply by -1
+            total_rad = -1.0 * (b2_ploss + (eirene_ecoolrate - eirene_potential_loss))
 
-    else:
-         # Total radiated power from B2, not including neutrals
-        b2_ploss = np.sum(fhandle.variables['b2stel_she_bal'].data, axis=0)/vol
+        else:
+            # Total radiated power from B2, not including neutrals
+            b2_ploss = 0
+            potential_loss = 0
 
-        potential_loss = np.sum(fhandle.variables['b2stel_sna_ion_bal'].data, axis=0)/vol
+            if 'b2stel_she_bal' in fhandle.variables:
+                b2_ploss = np.sum(fhandle.variables['b2stel_she_bal'].data, axis=0) / mesh.vol
 
-        # Save total radiated power to the simulation object
-        sim._total_rad = 13.6 * Q * potential_loss - b2_ploss
+            if 'b2stel_sna_ion_bal' in fhandle.variables:
+                potential_loss = np.sum(fhandle.variables['b2stel_sna_ion_bal'].data, axis=0) / mesh.vol
 
-    fhandle.close()	
+            # Save total radiated power to the simulation object
+            total_rad = rydberg_energy * el_charge * potential_loss - b2_ploss
+
+        if total_rad is not 0:
+            sim.total_radiation = total_rad
 
     return sim
+
+
+def load_mesh_from_netcdf(fhandle):
+
+    # Load SOLPS mesh geometry
+    # Re-arrange the array dimensions in the way CHERAB expects...
+    r = fhandle.variables['crx'].data.copy()
+    z = fhandle.variables['cry'].data.copy()
+    vol = fhandle.variables['vol'].data.copy()
+
+    # Loading neighbouring cell indices
+    neighbix = np.zeros(r.shape, dtype=np.int)
+    neighbiy = np.zeros(r.shape, dtype=np.int)
+
+    neighbix[0] = fhandle.variables['leftix'].data.astype(np.int)  # poloidal prev.
+    neighbix[1] = fhandle.variables['bottomix'].data.astype(np.int)  # radial prev.
+    neighbix[2] = fhandle.variables['rightix'].data.astype(np.int)  # poloidal next
+    neighbix[3] = fhandle.variables['topix'].data.astype(np.int)  # radial next
+
+    neighbiy[0] = fhandle.variables['leftiy'].data.astype(np.int)
+    neighbiy[1] = fhandle.variables['bottomiy'].data.astype(np.int)
+    neighbiy[2] = fhandle.variables['rightiy'].data.astype(np.int)
+    neighbiy[3] = fhandle.variables['topiy'].data.astype(np.int)
+
+    # In SOLPS cell indexing starts with -1 (guarding cell), but in SOLPSMesh -1 means no neighbour.
+    neighbix += 1
+    neighbiy += 1
+    neighbix[neighbix == r.shape[2]] = -1
+    neighbiy[neighbiy == r.shape[1]] = -1
+
+    # Create the SOLPS mesh
+    mesh = SOLPSMesh(r, z, vol, neighbix, neighbiy)
+
+    return mesh

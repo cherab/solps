@@ -25,9 +25,9 @@ def read_block44(file_handle, ns, nx, ny):
     :param file_handle: A python core file handle object as a result of a
       call to open('./fort.44').
     :param int ns: total number of species
-    :param int nx: number of grid x cells
-    :param int ny: number of grid y cells
-    :return: ndarray of data with shape [nx, ny, ns]
+    :param int nx: number of grid poloidal cells
+    :param int ny: number of grid radial cells
+    :return: ndarray of data with shape [ns, ny, nx]
     """
     data = []
     npoints = ns * nx * ny
@@ -37,5 +37,5 @@ def read_block44(file_handle, ns, nx, ny):
             # This is a comment line. Ignore
             continue
         data.extend(line)
-    data = np.asarray(data, dtype=float).reshape((nx, ny, ns), order='F')
+    data = np.asarray(data, dtype=float).reshape((ns, ny, nx))
     return data

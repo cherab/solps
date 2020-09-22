@@ -19,33 +19,14 @@
 
 import os
 import numpy as np
-from raysect.core.math.function import Discrete2DMesh
+from scipy.constants import elementary_charge
 
-from cherab.core.math.mappers import AxisymmetricMapper
-from cherab.core.atomic.elements import hydrogen, deuterium, helium, beryllium, carbon, nitrogen, oxygen, neon, \
-    argon, krypton, xenon
+from cherab.core.atomic.elements import lookup_isotope
 
 from cherab.solps.eirene import load_fort44_file
 from cherab.solps.b2.parse_b2_block_file import load_b2f_file
 from cherab.solps.mesh_geometry import SOLPSMesh
-from cherab.solps.solps_plasma import SOLPSSimulation
-
-Q = 1.602E-19
-
-# key is nuclear charge Z and atomic mass AMU
-_popular_species = {
-    (1, 2): deuterium,
-    (2, 4.003): helium,
-    (2, 4.0): helium,
-    (6, 12.011): carbon,
-    (6, 12.0): carbon,
-    (7, 14.007): nitrogen,
-    (10, 20.0): neon,
-    (10, 20.1797): neon,
-    (18, 39.948): argon,
-    (36, 83.798): krypton,
-    (54, 131.293): xenon
-}
+from cherab.solps.solps_plasma import SOLPSSimulation, prefer_element, eirene_flux_to_velocity, b2_flux_to_velocity
 
 
 # Code based on script by Felix Reimold (2016)
@@ -56,93 +37,156 @@ def load_solps_from_raw_output(simulation_path, debug=False):
     Required files include:
     * mesh description file (b2fgmtry)
     * B2 plasma state (b2fstate)
-    * Eirene output file (fort.44)
+    * Eirene output file (fort.44), optional
 
     :param str simulation_path: String path to simulation directory.
     :rtype: SOLPSSimulation
     """
 
     if not os.path.isdir(simulation_path):
-        RuntimeError("simulation_path must be a valid directory")
+        raise RuntimeError("simulation_path must be a valid directory.")
 
     mesh_file_path = os.path.join(simulation_path, 'b2fgmtry')
     b2_state_file = os.path.join(simulation_path, 'b2fstate')
     eirene_fort44_file = os.path.join(simulation_path, "fort.44")
 
     if not os.path.isfile(mesh_file_path):
-        raise RuntimeError("No B2 b2fgmtry file found in SOLPS output directory")
+        raise RuntimeError("No B2 b2fgmtry file found in SOLPS output directory.")
 
-    if not(os.path.isfile(b2_state_file)):
-        RuntimeError("No B2 b2fstate file found in SOLPS output directory")
+    if not os.path.isfile(b2_state_file):
+        raise RuntimeError("No B2 b2fstate file found in SOLPS output directory.")
 
-    if not(os.path.isfile(eirene_fort44_file)):
-        RuntimeError("No EIRENE fort.44 file found in SOLPS output directory")
+    if not os.path.isfile(eirene_fort44_file):
+        print("Warning! No EIRENE fort.44 file found in SOLPS output directory. Assuming B2 stand-alone simulation.")
+        b2_standalone = True
+    else:
+        # Load data for neutral species from EIRENE output file
+        eirene = load_fort44_file(eirene_fort44_file, debug=debug)
+        b2_standalone = False
 
     # Load SOLPS mesh geometry
-    mesh = load_mesh_from_files(mesh_file_path=mesh_file_path, debug=debug)
+    _, _, geom_data_dict = load_b2f_file(mesh_file_path, debug=debug)  # geom_data_dict is needed also for magnetic field
+
+    mesh = create_mesh_from_geom_data(geom_data_dict)
+
+    ny = mesh.ny  # radial
+    nx = mesh.nx  # poloidal
 
     header_dict, sim_info_dict, mesh_data_dict = load_b2f_file(b2_state_file, debug=debug)
 
-    sim = SOLPSSimulation(mesh)
-    ni = mesh.nx
-    nj = mesh.ny
-
-    # TODO: add code to load SOLPS velocities and magnetic field from files
-
-    # Load electron species
-    sim._electron_temperature = mesh_data_dict['te']/Q
-    sim._electron_density = mesh_data_dict['ne']
-
-    ##########################################
-    # Load each plasma species in simulation #
-    ##########################################
-
-    sim._species_list = []
+    # Load each plasma species in simulation
+    species_list = []
+    neutral_indx = []
     for i in range(len(sim_info_dict['zn'])):
 
         zn = int(sim_info_dict['zn'][i])  # Nuclear charge
-        am = float(sim_info_dict['am'][i])  # Atomic mass
+        am = int(round(float(sim_info_dict['am'][i])))  # Atomic mass number
         charge = int(sim_info_dict['zamax'][i])  # Ionisation/charge
-        species = _popular_species[(zn, am)]
-        sim.species_list.append(species.symbol + str(charge))
+        isotope = lookup_isotope(zn, number=am)
+        species = prefer_element(isotope)  # Prefer Element over Isotope if the mass number is the same
+        species_list.append((species.name, charge))
+        if charge == 0:  # updating neutral index
+            neutral_indx.append(i)
 
-    sim._species_density = mesh_data_dict['na']
+    sim = SOLPSSimulation(mesh, species_list)
 
-    # Make Mesh Interpolator function for inside/outside mesh test.
-    inside_outside_data = np.ones(mesh.num_tris)
-    inside_outside = AxisymmetricMapper(Discrete2DMesh(mesh.vertex_coords, mesh.triangles, inside_outside_data, limit=False))
-    sim._inside_mesh = inside_outside
+    # Load magnetic field
+    sim.b_field = geom_data_dict['bb'][:3]
+    # sim.b_field_cylindrical is created automatically
 
-    # Load total radiated power from EIRENE output file
-    eirene = load_fort44_file(eirene_fort44_file, debug=debug)
-    sim._eirene = eirene
+    # Load electron species
+    sim.electron_temperature = mesh_data_dict['te'] / elementary_charge
+    sim.electron_density = mesh_data_dict['ne']
 
-    # Note EIRENE data grid is slightly smaller than SOLPS grid, for example (98, 38) => (96, 36)
-    # Need to pad EIRENE data to fit inside larger B2 array
-    nx = mesh.nx
-    ny = mesh.ny
-    eradt_raw_data = eirene.eradt.sum(2)
-    eradt_data = np.zeros((nx, ny))
-    eradt_data[1:nx-1, 1:ny-1] = eradt_raw_data
-    sim._total_rad = eradt_data
+    # Load ion temperature
+    sim.ion_temperature = mesh_data_dict['ti'] / elementary_charge
+
+    # Load species density
+    sim.species_density = mesh_data_dict['na']
+
+    # Load parallel velocity
+    parallel_velocity = mesh_data_dict['ua']
+
+    # Load poloidal and radial particle fluxes for velocity calculation
+    poloidal_flux = mesh_data_dict['fna'][::2]
+    radial_flux = mesh_data_dict['fna'][1::2]
+
+    # Obtaining velocity from B2 flux
+    sim.velocities_cylindrical = b2_flux_to_velocity(sim, poloidal_flux, radial_flux, parallel_velocity)
+
+    if not b2_standalone:
+        # Obtaining additional data from EIRENE and replacing data for neutrals
+        # Note EIRENE data grid is slightly smaller than SOLPS grid, for example (98, 38) => (96, 36)
+        # Need to pad EIRENE data to fit inside larger B2 array
+
+        neutral_density = np.zeros((len(neutral_indx), ny, nx))
+        neutral_density[:, 1:-1, 1:-1] = eirene.da
+        sim.species_density[neutral_indx] = neutral_density
+
+        # Obtaining neutral atom velocity from EIRENE flux
+        # Note that if the output for fluxes was turned off, eirene.ppa and eirene.rpa are all zeros
+        if np.any(eirene.ppa) or np.any(eirene.rpa):
+            neutral_poloidal_flux = np.zeros((len(neutral_indx), ny, nx))
+            neutral_poloidal_flux[:, 1:-1, 1:-1] = eirene.ppa
+
+            neutral_radial_flux = np.zeros((len(neutral_indx), ny, nx))
+            neutral_radial_flux[:, 1:-1, 1:-1] = eirene.rpa
+
+            neutral_parallel_velocity = np.zeros((len(neutral_indx), ny, nx))  # must be zero outside EIRENE grid
+            neutral_parallel_velocity[:, 1:-1, 1:-1] = parallel_velocity[neutral_indx, 1:-1, 1:-1]
+
+            sim.velocities_cylindrical[neutral_indx] = eirene_flux_to_velocity(sim, neutral_poloidal_flux, neutral_radial_flux,
+                                                                               neutral_parallel_velocity)
+            sim.velocities_cylindrical = sim.velocities_cylindrical  # Updating sim.velocities
+
+        # Obtaining neutral temperatures
+        ta = np.zeros((eirene.ta.shape[0], ny, nx))
+        ta[:, 1:-1, 1:-1] = eirene.ta
+        # extrapolating
+        for i in (0, -1):
+            ta[:, i, 1:-1] = eirene.ta[:, i, :]
+            ta[:, 1:-1, i] = eirene.ta[:, :, i]
+        for i, j in ((0, 0), (0, -1), (-1, 0), (-1, -1)):
+            ta[:, i, j] = eirene.ta[:, i, j]
+        sim.neutral_temperature = ta / elementary_charge
+
+        # Obtaining total radiation
+        if eirene.eradt is not None:
+            eradt_raw_data = eirene.eradt.sum(0)
+            total_radiation = np.zeros((ny, nx))
+            total_radiation[1:-1, 1:-1] = eradt_raw_data
+            sim.total_radiation = total_radiation
+
+        sim.eirene_simulation = eirene
 
     return sim
 
+def create_mesh_from_geom_data(geom_data):
 
-def load_mesh_from_files(mesh_file_path, debug=False):
-    """
-    Load SOLPS grid description from B2 Eirene output file.
+    r = geom_data['crx']
+    z = geom_data['cry']
+    vol = geom_data['vol']
 
-    :param str filepath: full path for B2 eirene mesh description file
-    :param bool debug: flag for displaying textual debugging information.
-    :return: tuple of dictionaries. First is the header information such as the version, label, grid size, etc.
-      Second dictionary has a ndarray for each piece of data found in the file.
-    """
-    _, _, geom_data_dict = load_b2f_file(mesh_file_path, debug=debug)
+    # Loading neighbouring cell indices
+    neighbix = np.zeros(r.shape, dtype=np.int)
+    neighbiy = np.zeros(r.shape, dtype=np.int)
 
-    cr_x = geom_data_dict['crx']
-    cr_z = geom_data_dict['cry']
-    vol = geom_data_dict['vol']
+    neighbix[0] = geom_data['leftix'].astype(np.int)  # poloidal prev.
+    neighbix[1] = geom_data['bottomix'].astype(np.int)  # radial prev.
+    neighbix[2] = geom_data['rightix'].astype(np.int)  # poloidal next
+    neighbix[3] = geom_data['topix'].astype(np.int)  # radial next
 
-    # build mesh object
-    return SOLPSMesh(cr_x, cr_z, vol)
+    neighbiy[0] = geom_data['leftiy'].astype(np.int)
+    neighbiy[1] = geom_data['bottomiy'].astype(np.int)
+    neighbiy[2] = geom_data['rightiy'].astype(np.int)
+    neighbiy[3] = geom_data['topiy'].astype(np.int)
+
+    # In SOLPS cell indexing starts with -1 (guarding cell), but in SOLPSMesh -1 means no neighbour.
+    neighbix += 1
+    neighbiy += 1
+    neighbix[neighbix == r.shape[2]] = -1
+    neighbiy[neighbiy == r.shape[1]] = -1
+
+    mesh = SOLPSMesh(r, z, vol, neighbix, neighbiy)
+
+    return mesh
