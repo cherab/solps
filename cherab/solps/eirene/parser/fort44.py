@@ -18,6 +18,7 @@
 
 from cherab.solps.eirene.parser.fort44_2017 import load_fort44_2017
 from cherab.solps.eirene.parser.fort44_2013 import load_fort44_2013
+from cherab.solps.eirene.parser.fort44_old import load_fort44_old
 
 
 def load_fort44_file(file_path, debug=False):
@@ -59,8 +60,19 @@ def assign_fort44_parser(file_version):
     """
 
     fort44_parser_library = {
-        20170328: load_fort44_2017,
-        20130210: load_fort44_2013
+        960511: load_fort44_old,
+        960513: load_fort44_old,
+        960623: load_fort44_old,
+        960727: load_fort44_old,
+        961228: load_fort44_old,
+        20000727: load_fort44_old,
+        20051115: load_fort44_old,
+        20060206: load_fort44_old,
+        20071209: load_fort44_old,  # here we are missing eneutrad
+        20080706: load_fort44_old,  # here we are missing eneutrad
+        20081111: load_fort44_old,  # here we are missing eneutrad
+        20130210: load_fort44_2013,
+        20170328: load_fort44_2017
     }
 
     if file_version in fort44_parser_library.keys():
