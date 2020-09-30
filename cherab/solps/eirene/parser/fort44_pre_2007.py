@@ -20,7 +20,7 @@ from cherab.solps.eirene import Eirene
 from cherab.solps.eirene.parser.utility import read_block44
 
 
-def load_fort44_old(file_path, debug=False):
+def load_fort44_pre_2007(file_path, debug=False):
     """ Read neutral species and wall flux information from fort.44
 
     Template for reading is ngread.F in b2plot of B2.5 source.
