@@ -19,7 +19,7 @@
 
 import os
 import numpy as np
-from scipy.constants import elementary_charge
+import scipy.constants as const
 
 from cherab.core.atomic.elements import lookup_isotope
 
@@ -95,11 +95,11 @@ def load_solps_from_raw_output(simulation_path, debug=False):
     # sim.b_field_cylindrical is created automatically
 
     # Load electron species
-    sim.electron_temperature = mesh_data_dict['te'] / elementary_charge
+    sim.electron_temperature = mesh_data_dict['te'] / const.elementary_charge
     sim.electron_density = mesh_data_dict['ne']
 
     # Load ion temperature
-    sim.ion_temperature = mesh_data_dict['ti'] / elementary_charge
+    sim.ion_temperature = mesh_data_dict['ti'] / const.elementary_charge
 
     # Load species density
     sim.species_density = mesh_data_dict['na']
@@ -148,7 +148,7 @@ def load_solps_from_raw_output(simulation_path, debug=False):
             ta[:, 1:-1, i] = eirene.ta[:, :, i]
         for i, j in ((0, 0), (0, -1), (-1, 0), (-1, -1)):
             ta[:, i, j] = eirene.ta[:, i, j]
-        sim.neutral_temperature = ta / elementary_charge
+        sim.neutral_temperature = ta / const.elementary_charge
 
         # Obtaining total radiation
         if eirene.eradt is not None:
@@ -156,6 +156,20 @@ def load_solps_from_raw_output(simulation_path, debug=False):
             total_radiation = np.zeros((ny, nx))
             total_radiation[1:-1, 1:-1] = eradt_raw_data
             sim.total_radiation = total_radiation
+
+        # Obtaining molecular and total H-alpha radiation
+        halpha_wavelength = 656.1
+        photon_energy = const.h * const.c / halpha_wavelength * 1.e9
+
+        if eirene.emism is not None:
+            halpha_mol_radiation = np.zeros((ny, nx))
+            halpha_mol_radiation[1:-1, 1:-1] = eirene.emism[0] * photon_energy
+            sim.halpha_mol_radiation = halpha_mol_radiation
+
+        if eirene.emist is not None:
+            halpha_total_radiation = np.zeros((ny, nx))
+            halpha_total_radiation[1:-1, 1:-1] = eirene.emist[0] * photon_energy
+            sim.halpha_total_radiation = halpha_total_radiation
 
         sim.eirene_simulation = eirene
 

@@ -18,6 +18,7 @@
 # under the Licence.
 
 import numpy as np
+import scipy.constants as const
 
 from cherab.core.atomic.elements import lookup_isotope
 from cherab.solps.mesh_geometry import SOLPSMesh
@@ -155,8 +156,29 @@ def load_solps_from_mdsplus(mds_server, ref_number):
 
     total_rad = linerad + brmrad + neurad
 
-    if total_rad is not 0:
+    if isinstance(total_rad, np.ndarray):
         sim.total_radiation = total_rad / mesh.vol
+
+    ########################################
+    # Molecular and total H-alpha emission #
+    try:
+        halpha_mol = conn.get(r'\SOLPS::TOP.SNAPSHOT.EMISSMOL').data()[:]
+    except (MdsException, TypeError):
+        halpha_mol = 0
+
+    try:
+        halpha_at = conn.get(r'\SOLPS::TOP.SNAPSHOT.EMISS').data()[:]
+    except (MdsException, TypeError):
+        halpha_at = 0
+
+    halpha_total = halpha_mol + halpha_at
+
+    halpha_wavelength = 656.1
+    photon_energy = const.h * const.c / halpha_wavelength * 1.e9
+
+    if isinstance(halpha_total, np.ndarray):
+        sim.halpha_mol_radiation = halpha_mol * photon_energy  # photon s-1 m-3 --> W m-3
+        sim.halpha_total_radiation = halpha_total * photon_energy  # photon s-1 m-3 --> W m-3
 
     return sim
 

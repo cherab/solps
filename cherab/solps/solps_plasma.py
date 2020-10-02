@@ -83,6 +83,12 @@ class SOLPSSimulation:
         self._velocities_cylindrical = None
         self._velocities_cylindrical_f2d = None
         self._velocities_cartesian = None
+        self._halpha_mol_radiation = None
+        self._halpha_mol_radiation_f2d = None
+        self._halpha_mol_radiation_f3d = None
+        self._halpha_total_radiation = None
+        self._halpha_total_radiation_f2d = None
+        self._halpha_total_radiation_f3d = None
         self._total_radiation = None
         self._total_radiation_f2d = None
         self._total_radiation_f3d = None
@@ -517,6 +523,82 @@ class SOLPSSimulation:
         self._total_radiation_f3d = AxisymmetricMapper(self._total_radiation_f2d)
 
     @property
+    def halpha_mol_radiation(self):
+        """
+        Molecular H-alpha radiation at each mesh cell.
+        Array of shape (ny, nx).
+
+        This is calculated with a built-in EIRENE collissional radiative model (CRM).
+        Final output is in W m-3.
+        """
+
+        return self._halpha_mol_radiation
+
+    @property
+    def halpha_mol_radiation_f2d(self):
+        """
+        Function2D interpolator for molecular H-alpha radiation.
+        Returns total radiation at a given point (R, Z).
+        """
+
+        return self._halpha_mol_radiation_f2d
+
+    @property
+    def halpha_mol_radiation_f3d(self):
+        """
+        Function3D interpolator for molecular H-alpha radiation.
+        Returns total radiation at a given point (x, y, z).
+        """
+
+        return self._halpha_mol_radiation_f3d
+
+    @halpha_mol_radiation.setter
+    def halpha_mol_radiation(self, value):
+        value = np.array(value, dtype=np.float64, copy=False)
+        _check_shape("halpha_mol_radiation", value, (self.mesh.ny, self.mesh.nx))
+        self._halpha_mol_radiation = value
+        self._halpha_mol_radiation_f2d = SOLPSFunction2D.instance(self._inside_mesh, value)
+        self._halpha_mol_radiation_f3d = AxisymmetricMapper(self._halpha_mol_radiation_f2d)
+
+    @property
+    def halpha_total_radiation(self):
+        """
+        Total (molecular + atomic) H-alpha radiation at each mesh cell.
+        Array of shape (ny, nx).
+
+        This is calculated with a built-in EIRENE collissional radiative model (CRM).
+        Final output is in W m-3.
+        """
+
+        return self._halpha_total_radiation
+
+    @property
+    def halpha_total_radiation_f2d(self):
+        """
+        Function2D interpolator for total H-alpha radiation.
+        Returns total radiation at a given point (R, Z).
+        """
+
+        return self._halpha_total_radiation_f2d
+
+    @property
+    def halpha_total_radiation_f3d(self):
+        """
+        Function3D interpolator for total H-alpha radiation.
+        Returns total radiation at a given point (x, y, z).
+        """
+
+        return self._halpha_total_radiation_f3d
+
+    @halpha_total_radiation.setter
+    def halpha_total_radiation(self, value):
+        value = np.array(value, dtype=np.float64, copy=False)
+        _check_shape("halpha_total_radiation", value, (self.mesh.ny, self.mesh.nx))
+        self._halpha_total_radiation = value
+        self._halpha_total_radiation_f2d = SOLPSFunction2D.instance(self._inside_mesh, value)
+        self._halpha_total_radiation_f3d = AxisymmetricMapper(self._halpha_total_radiation_f2d)
+
+    @property
     def b_field(self):
         """
         Magnetic B field in poloidal coordinates (e_pol, e_rad, e_tor) at each mesh cell.
@@ -611,6 +693,8 @@ class SOLPSSimulation:
             'electron_velocities_cylindrical': self._electron_velocities_cylindrical,
             'velocities_cylindrical': self._velocities_cylindrical,
             'total_radiation': self._total_radiation,
+            'halpha_mol_radiation': self._halpha_mol_radiation,
+            'halpha_total_radiation': self._halpha_total_radiation,
             'b_field_cylindrical': self._b_field_cylindrical,
             'eirene_model': self._eirene_model,
             'b2_model': self._b2_model,
@@ -635,6 +719,10 @@ class SOLPSSimulation:
             self.velocities_cylindrical = state['velocities_cylindrical']
         if state['total_radiation'] is not None:
             self.total_radiation = state['total_radiation']
+        if state['halpha_mol_radiation'] is not None:
+            self.halpha_mol_radiation = state['halpha_mol_radiation']
+        if state['halpha_total_radiation'] is not None:
+            self.halpha_total_radiation = state['halpha_total_radiation']
         if state['b_field_cylindrical'] is not None:
             self.b_field_cylindrical = state['b_field_cylindrical']
         self._eirene_model = state['eirene_model']
