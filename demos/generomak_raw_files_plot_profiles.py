@@ -17,13 +17,12 @@
 
 import os
 import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm
+from matplotlib.colors import SymLogNorm
 import numpy as np
 from scipy import linalg
 
 from cherab.core.atomic.elements import hydrogen, carbon
-from cherab.core.math.samplers import sample2d, sample2d_grid
-from cherab.core.math.samplers import sample3d, sample3d_grid, samplevector3d_grid
+from cherab.core.math import sample2d, sample2d_grid, sample3d, sample3d_grid, samplevector3d_grid
 from cherab.solps import load_solps_from_raw_output
 
 
@@ -106,95 +105,39 @@ print('Plasma and simulation sampled quantities are identical.')
 mesh.plot_mesh()
 plt.title('Mesh geometry')
 
-plt.figure()
-plt.imshow(ne_samples.T, extent=[xl, xu, zl, zu], origin='lower', norm=LogNorm())
-plt.colorbar()
-plt.xlim(xl, xu)
-plt.ylim(zl, zu)
-plt.title('Electron density [m-3]')
 
-plt.figure()
-plt.imshow(te_samples.T, extent=[xl, xu, zl, zu], origin='lower')
-plt.colorbar()
-plt.xlim(xl, xu)
-plt.ylim(zl, zu)
-plt.title('Electron temperature [eV]')
+def plot_quantity(quantity, title, logscale):
+    """
+    Make a 2D plot of quantity, with a title, optionally on a log scale.
+    """
+    fig, ax = plt.subplots()
+    if logscale:
+        # Plot lowest values (mainly 0's) on linear map, as log(0) = -inf.
+        linthresh = np.percentile(np.unique(quantity), 1)
+        norm = SymLogNorm(linthresh=linthresh)
+    else:
+        norm = None
+    # Sampled data is indexed as quantity(x, y), but matplotlib's imshow
+    # expects quantity(y, x).
+    image = ax.imshow(quantity.T, extent=[xl, xu, zl, zu], origin='lower', norm=norm)
+    fig.colorbar(image)
+    ax.set_xlim(xl, xu)
+    ax.set_ylim(zl, zu)
+    ax.set_title(title)
 
-plt.figure()
-plt.imshow(h0_samples.T, extent=[xl, xu, zl, zu], origin='lower', norm=LogNorm())
-plt.colorbar()
-plt.xlim(xl, xu)
-plt.ylim(zl, zu)
-plt.title('H0 density [m-3]')
 
-plt.figure()
-plt.imshow(h1_samples.T, extent=[xl, xu, zl, zu], origin='lower', norm=LogNorm())
-plt.colorbar()
-plt.xlim(xl, xu)
-plt.ylim(zl, zu)
-plt.title('H+ density [m-3]')
-
-plt.figure()
-plt.imshow(c0_samples.T, extent=[xl, xu, zl, zu], origin='lower', norm=LogNorm())
-plt.colorbar()
-plt.xlim(xl, xu)
-plt.ylim(zl, zu)
-plt.title('CI density [m-3]')
-
-plt.figure()
-plt.imshow(c1_samples.T, extent=[xl, xu, zl, zu], origin='lower', norm=LogNorm())
-plt.colorbar()
-plt.xlim(xl, xu)
-plt.ylim(zl, zu)
-plt.title('CII density [m-3]')
-
-plt.figure()
-plt.imshow(c2_samples.T, extent=[xl, xu, zl, zu], origin='lower', norm=LogNorm())
-plt.colorbar()
-plt.xlim(xl, xu)
-plt.ylim(zl, zu)
-plt.title('CIII density [m-3]')
-
-plt.figure()
-plt.imshow(c3_samples.T, extent=[xl, xu, zl, zu], origin='lower', norm=LogNorm())
-plt.colorbar()
-plt.xlim(xl, xu)
-plt.ylim(zl, zu)
-plt.title('CIV density [m-3]')
-
-plt.figure()
-plt.imshow(c4_samples.T, extent=[xl, xu, zl, zu], origin='lower', norm=LogNorm())
-plt.colorbar()
-plt.xlim(xl, xu)
-plt.ylim(zl, zu)
-plt.title('CV density [m-3]')
-
-plt.figure()
-plt.imshow(c5_samples.T, extent=[xl, xu, zl, zu], origin='lower', norm=LogNorm())
-plt.colorbar()
-plt.xlim(xl, xu)
-plt.ylim(zl, zu)
-plt.title('CVI density [m-3]')
-
-plt.figure()
-plt.imshow(c6_samples.T, extent=[xl, xu, zl, zu], origin='lower', norm=LogNorm())
-plt.colorbar()
-plt.xlim(xl, xu)
-plt.ylim(zl, zu)
-plt.title('CVII density [m-3]')
-
-plt.figure()
-plt.imshow(h1_speed.T, extent=[xl, xu, zl, zu], origin='lower')
-plt.colorbar()
-plt.xlim(xl, xu)
-plt.ylim(zl, zu)
-plt.title('H+ speed [m/s]')
-
-plt.figure()
-plt.imshow(inside_samples.T, extent=[xl, xu, zl, zu], origin='lower')
-plt.colorbar()
-plt.xlim(xl, xu)
-plt.ylim(zl, zu)
-plt.title('Inside/Outside test')
+plot_quantity(ne_samples, 'Electron density [m-3]', True)
+plot_quantity(te_samples, 'Electron temperature [eV]', False)
+plot_quantity(h0_samples, 'H0 density [m-3]', True)
+plot_quantity(h1_samples, 'H+ density [m-3]', True)
+plot_quantity(c0_samples, 'CI density [m-3]', True)
+plot_quantity(c1_samples, 'CII density [m-3]', True)
+plot_quantity(c2_samples, 'CIII density [m-3]', True)
+plot_quantity(c3_samples, 'CIV density [m-3]', True)
+plot_quantity(c4_samples, 'CV density [m-3]', True)
+plot_quantity(c5_samples, 'CVI density [m-3]', True)
+plot_quantity(c6_samples, 'CVII density [m-3]', True)
+plot_quantity(h1_speed, 'H+ speed [m/s]', False)
+plot_quantity(inside_samples, 'Inside/outside test', False)
 
 plt.show()
