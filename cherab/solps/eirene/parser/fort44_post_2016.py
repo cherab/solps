@@ -77,45 +77,39 @@ def load_fort44_post_2016(file_path, debug=False):
     # create eirene object
     eirene = Eirene(nx, ny, na, nm, ni, ns, species_labels, version)
 
-    # Read atomic species density and temperature (da, ta)
+    # Read atomic species data
     eirene.da = raw_data['dab2'].reshape(eirene.na, eirene.ny, eirene.nx)
     eirene.ta = raw_data['tab2'].reshape(eirene.na, eirene.ny, eirene.nx)
-    if debug:
-        print('Atomic Neutral Density nD0: ', eirene.da[0, :, 0])
-        print('Atomic Neutral Temperature TD0: ', eirene.ta[0, :, 0])
-
-    # Read molecular species density and temperature (dm, tm)
-    eirene.dm = raw_data['dmb2'].reshape(eirene.nm, eirene.ny, eirene.nx)
-    eirene.tm = raw_data['tmb2'].reshape(eirene.nm, eirene.ny, eirene.nx)
-
-    # Read ion species density and temperature (di, ti)
-    eirene.di = raw_data['dib2'].reshape(eirene.ni, eirene.ny, eirene.nx)
-    eirene.ti = raw_data['tib2'].reshape(eirene.ni, eirene.ny, eirene.nx)
-
-    # Read atomic and molecular radial particle fluxes (rpa, rpm)
     eirene.rpa = raw_data['rfluxa'].reshape(eirene.na, eirene.ny, eirene.nx)
-    eirene.rpm = raw_data['rfluxm'].reshape(eirene.nm, eirene.ny, eirene.nx)
-
-    # Read atomic and molecular poloidal particle fluxes (ppa, ppm)
     eirene.ppa = raw_data['pfluxa'].reshape(eirene.na, eirene.ny, eirene.nx)
-    eirene.ppm = raw_data['pfluxm'].reshape(eirene.nm, eirene.ny, eirene.nx)
-
-    # Read radial energy flux (rea, rem)
     eirene.rea = raw_data['refluxa'].reshape(eirene.na, eirene.ny, eirene.nx)
-    eirene.rem = raw_data['refluxm'].reshape(eirene.nm, eirene.ny, eirene.nx)
-
-    # Read poloidal energy flux (pea, pem)
     eirene.pea = raw_data['pefluxa'].reshape(eirene.na, eirene.ny, eirene.nx)
-    eirene.pem = raw_data['pefluxm'].reshape(eirene.nm, eirene.ny, eirene.nx)
 
-    # Halpha total & molecules (emist, emism)
+    # Read molecular species data
+    if eirene.nm > 0:
+        eirene.dm = raw_data['dmb2'].reshape(eirene.nm, eirene.ny, eirene.nx)
+        eirene.tm = raw_data['tmb2'].reshape(eirene.nm, eirene.ny, eirene.nx)
+        eirene.rpm = raw_data['rfluxm'].reshape(eirene.nm, eirene.ny, eirene.nx)
+        eirene.ppm = raw_data['pfluxm'].reshape(eirene.nm, eirene.ny, eirene.nx)
+        eirene.rem = raw_data['refluxm'].reshape(eirene.nm, eirene.ny, eirene.nx)
+        eirene.pem = raw_data['pefluxm'].reshape(eirene.nm, eirene.ny, eirene.nx)
+        eirene.emism = raw_data['emissmol'].reshape(1, eirene.ny, eirene.nx)
+        eirene.edism = raw_data['edissml'].reshape(eirene.nm, eirene.ny, eirene.nx)
+
+    # Read ion species data
+    if eirene.ni > 0:
+        eirene.di = raw_data['dib2'].reshape(eirene.ni, eirene.ny, eirene.nx)
+        eirene.ti = raw_data['tib2'].reshape(eirene.ni, eirene.ny, eirene.nx)
+
+    # Halpha emission
     # fort.44 gives emission due to atoms and emission due to molecules separately.
-    eirene.emism = raw_data['emissmol'].reshape(1, eirene.ny, eirene.nx)
-    eirene.emist = raw_data['emiss'].reshape(1, eirene.ny, eirene.nx) + eirene.emism
+    emiss_atoms = raw_data['emiss'].reshape(1, eirene.ny, eirene.nx)
+    if eirene.nm > 0:
+        eirene.emist = emiss_atoms + eirene.emism
+    else:
+        eirene.emist = emiss_atoms
 
-    # Radiated power (elosm, edism, eradt)
-    eirene.edism = raw_data['edissml'].reshape(eirene.nm, eirene.ny, eirene.nx)
-
+    # Radiated power
     eneutrad = raw_data['eneutrad'].reshape(eirene.na, eirene.ny, eirene.nx)
     try:
         emolrad = raw_data['emolrad'].reshape(eirene.nm, eirene.ny, eirene.nx)
