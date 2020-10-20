@@ -53,8 +53,8 @@ def read_labelled_block44(file_handle):
 
     :param file_handle: A python core file handle object as a result of a
       call to open('./fort.44').
-    :return: a tuple (name, data) where name is a string and data is a
-    1D array of the data.
+    :return: a dictionary {name: data} where name is a string and data is
+      a 1D array of the data.
     """
     header = file_handle.readline()
     # Remove whitespace in indexed labels
@@ -65,7 +65,7 @@ def read_labelled_block44(file_handle):
         raise EOFError()
     # Deal with unlabelled printing of nlim, nsts, nstra
     if len(header) == 3:
-        return None, None
+        return {'extra_dims': np.asarray(header, dtype=int)}
     if " ".join(header[:3]) != "*eirene data field":
         raise ValueError("fort.44 block format is not supported.")
     name = header[3]
@@ -86,4 +86,4 @@ def read_labelled_block44(file_handle):
             continue
         data.extend(line)
     data = np.asarray(data, dtype=float)
-    return name, data
+    return {name: data}

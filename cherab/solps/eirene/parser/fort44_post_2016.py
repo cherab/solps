@@ -68,11 +68,9 @@ def load_fort44_post_2016(file_path, debug=False):
         raw_data = {}
         while True:
             try:
-                name, values = read_labelled_block44(file_handle)
+                raw_data.update(read_labelled_block44(file_handle))
             except EOFError:
                 break
-            else:
-                raw_data[name] = values
 
     # create eirene object
     eirene = Eirene(nx, ny, na, nm, ni, ns, species_labels, version)
