@@ -57,13 +57,16 @@ def read_labelled_block44(file_handle):
       a 1D array of the data.
     """
     header = file_handle.readline()
-    # Remove whitespace in indexed labels
+    if not header:
+        raise EOFError()
+    # Treat blank lines between blocks as null data.
+    if header == "\n":
+        return {}
+    # Remove whitespace in indexed labels.
     pattern = re.compile(r"\(\s+(\d+)\)")
     header = pattern.sub(r"(\1)", header)
     header = header.split()
-    if not header:
-        raise EOFError()
-    # Deal with unlabelled printing of nlim, nsts, nstra
+    # Deal with unlabelled printing of nlim, nsts, nstra.
     if len(header) == 3:
         return {'extra_dims': np.asarray(header, dtype=int)}
     if " ".join(header[:3]) != "*eirene data field":
