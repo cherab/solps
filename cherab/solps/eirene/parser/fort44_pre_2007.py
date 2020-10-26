@@ -17,7 +17,7 @@
 # under the Licence.
 
 from cherab.solps.eirene import Eirene
-from cherab.solps.eirene.parser.utility import read_block44
+from cherab.solps.eirene.parser.utility import read_unlabelled_block44 as read_block44
 
 
 def load_fort44_pre_2007(file_path, debug=False):
