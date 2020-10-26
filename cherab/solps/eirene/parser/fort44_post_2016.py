@@ -108,17 +108,30 @@ def load_fort44_post_2016(file_path, debug=False):
         eirene.emist = emiss_atoms
 
     # Radiated power
-    eneutrad = raw_data['eneutrad'].reshape(eirene.na, eirene.ny, eirene.nx)
+    try:
+        eneutrad = raw_data['eneutrad'].reshape(eirene.na, eirene.ny, eirene.nx)
+    except ValueError:
+        # Some Eirene/SOLPS combinations output eneutrad summed over atoms,
+        # rather than resolved.
+        eneutrad = raw_data['eneutrad'].reshape(1, eirene.ny, eirene.nx)
+
     try:
         emolrad = raw_data['emolrad'].reshape(eirene.nm, eirene.ny, eirene.nx)
     except KeyError:
         print("Warning: no emolrad data available in EIRENE simulation.")
         emolrad = 0
+    except ValueError:
+        # Data is summed over molecules rather than resolved.
+        emolrad = raw_data['emolrad'].reshape(1, eirene.ny, eirene.nx)
+
     try:
         eionrad = raw_data['eionrad'].reshape(eirene.ni, eirene.ny, eirene.nx)
     except KeyError:
         print("Warning: no eionrad data available in EIRENE simulation.")
         eionrad = 0
+    except ValueError:
+        # Data is summed over ions rather than resolved.
+        eionrad = raw_data['eionrad'].reshape(1, eirene.ny, eirene.nx)
 
     eirene.eradt = (np.sum(eneutrad, axis=0, keepdims=True)
                     + np.sum(emolrad, axis=0, keepdims=True)
