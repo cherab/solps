@@ -28,14 +28,22 @@ MESH_DATA = 1
 
 # Code based on a script by Felix Reimold (2016)
 
-def load_b2f_file(filepath, debug=False):
+def load_b2f_file(filepath, debug=False, header_dict=None):
     """
-    File for parsing the 'b2fstate' B2 Eirene output file.
+    File for parsing the 'b2fstate and b2fplasmf' B2 Eirene output files.
 
     :param str filepath: full path for file to load and parse
     :param bool debug: flag for displaying textual debugging information.
-    :return: tuple of dictionaries. First is the header information such as the version, label, grid size, etc. Second
-    dictionary has a SOLPSData object for each piece of data found in the file.
+    :param dict header_dict: header information
+    :return: tuple of dictionaries. First is the header information such
+      as the version, label, grid size, etc. Second contains arrays of
+      simulation outputs. Third contains information about the simulation
+      itself.
+
+    If header_dict is provided, it should contain the dimension info 'nx',
+    'ny', 'nxg', 'nyg', 'nxy', 'nxyg', as obtained by reading a previous
+    b2f* file. If header_dict is None, these values will be read from the
+    top of the file.
     """
 
     # Inline function for mapping str data to floats, reshaping arrays, and loading into SOLPSData object.
@@ -75,26 +83,34 @@ def load_b2f_file(filepath, debug=False):
     # Version header
     version = fh.readline()
 
-    # Read mesh size
-    fh.readline()
-    line = fh.readline().split()
-    nx = int(line[0])
-    ny = int(line[1])
+    if header_dict is None:
+        # Read mesh size
+        fh.readline()
+        line = fh.readline().split()
+        nx = int(line[0])
+        ny = int(line[1])
 
-    # Calculate guard cells
-    nxg = nx + 2
-    nyg = ny + 2
+        # Calculate guard cells
+        nxg = nx + 2
+        nyg = ny + 2
 
-    # Flat vector size
-    nxy = nx * ny
-    nxyg = nxg * nyg
+        # Flat vector size
+        nxy = nx * ny
+        nxyg = nxg * nyg
 
-    # Read Label
-    fh.readline()
-    label = fh.readline()
+        # Read Label
+        fh.readline()
+        label = fh.readline()
 
-    # Save header
-    header_dict = {'version': version, 'nx': nx, 'ny': ny, 'nxg': nxg, 'nyg': nyg, 'nxy': nxy, 'nxyg': nxyg, 'label': label}
+        # Save header
+        header_dict = {'version': version, 'nx': nx, 'ny': ny, 'nxg': nxg, 'nyg': nyg, 'nxy': nxy, 'nxyg': nxyg, 'label': label}
+    else:
+        nx = header_dict['nx']
+        ny = header_dict['ny']
+        nxg = header_dict['nxg']
+        nyg = header_dict['nyg']
+        nxy = header_dict['nxy']
+        nxyg = header_dict['nxyg']
 
     # variables for file data
     name = ''
