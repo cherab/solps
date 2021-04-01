@@ -72,8 +72,8 @@ class SOLPSMesh:
 
         self._vol = vol
 
-        self._neighbix = neighbix.astype(np.int)
-        self._neighbiy = neighbiy.astype(np.int)
+        self._neighbix = neighbix.astype(int)
+        self._neighbiy = neighbiy.astype(int)
 
         self.vessel = None
 
