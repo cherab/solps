@@ -34,9 +34,10 @@ def load_solps_from_raw_output(simulation_path, debug=False):
     """
     Load a SOLPS simulation from raw SOLPS output files.
 
-    Required files include:
+    Relevant files are:
     * mesh description file (b2fgmtry)
     * B2 plasma state (b2fstate)
+    * B2 plasma solution, formatted (b2fplasmf), optional
     * Eirene output file (fort.44), optional
 
     :param str simulation_path: String path to simulation directory.
@@ -48,31 +49,39 @@ def load_solps_from_raw_output(simulation_path, debug=False):
 
     mesh_file_path = os.path.join(simulation_path, 'b2fgmtry')
     b2_state_file = os.path.join(simulation_path, 'b2fstate')
+    b2_plasma_file = os.path.join(simulation_path, 'b2fplasmf')
     eirene_fort44_file = os.path.join(simulation_path, "fort.44")
 
+    # Load SOLPS mesh geometry
     if not os.path.isfile(mesh_file_path):
         raise RuntimeError("No B2 b2fgmtry file found in SOLPS output directory.")
+    _, _, geom_data_dict = load_b2f_file(mesh_file_path, debug=debug)  # geom_data_dict is needed also for magnetic field
 
     if not os.path.isfile(b2_state_file):
         raise RuntimeError("No B2 b2fstate file found in SOLPS output directory.")
+    header_dict, sim_info_dict, mesh_data_dict = load_b2f_file(b2_state_file, debug=debug)
+
+    if not os.path.isfile(b2_plasma_file):
+        print("Warning! No B2 b2fplasmf file found in SOLPS output directory. "
+              "No total_radiation data will be available.")
+        have_b2plasmf = False
+    else:
+        _, _, plasma_solution_dict = load_b2f_file(b2_plasma_file, debug=debug, header_dict=header_dict)
+        have_b2plasmf = True
 
     if not os.path.isfile(eirene_fort44_file):
-        print("Warning! No EIRENE fort.44 file found in SOLPS output directory. Assuming B2 stand-alone simulation.")
+        print("Warning! No EIRENE fort.44 file found in SOLPS output directory. "
+              "Assuming B2 stand-alone simulation.")
         b2_standalone = True
     else:
         # Load data for neutral species from EIRENE output file
         eirene = load_fort44_file(eirene_fort44_file, debug=debug)
         b2_standalone = False
 
-    # Load SOLPS mesh geometry
-    _, _, geom_data_dict = load_b2f_file(mesh_file_path, debug=debug)  # geom_data_dict is needed also for magnetic field
-
     mesh = create_mesh_from_geom_data(geom_data_dict)
 
     ny = mesh.ny  # radial
     nx = mesh.nx  # poloidal
-
-    header_dict, sim_info_dict, mesh_data_dict = load_b2f_file(b2_state_file, debug=debug)
 
     # Load each plasma species in simulation
     species_list = []
@@ -151,11 +160,13 @@ def load_solps_from_raw_output(simulation_path, debug=False):
         sim.neutral_temperature = ta / elementary_charge
 
         # Obtaining total radiation
-        if eirene.eradt is not None:
+        if have_b2plasmf and eirene.eradt is not None:
+            line_radiation = plasma_solution_dict['rqrad'].sum(0)
+            bremsstrahlung = plasma_solution_dict['rqbrm'].sum(0)
             eradt_raw_data = eirene.eradt.sum(0)
-            total_radiation = np.zeros((ny, nx))
-            total_radiation[1:-1, 1:-1] = eradt_raw_data
-            sim.total_radiation = total_radiation
+            total_radiation = line_radiation + bremsstrahlung
+            total_radiation[1:-1, 1:-1] -= eradt_raw_data
+            sim.total_radiation = total_radiation / mesh.vol
 
         sim.eirene_simulation = eirene
 
