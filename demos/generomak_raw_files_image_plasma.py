@@ -18,7 +18,7 @@
 import os
 import matplotlib.pyplot as plt
 
-from raysect.core.math import Vector3D, translate, rotate_basis
+from raysect.core.math import Vector3D, translate, rotate_basis, rotate_z
 from raysect.optical import World
 from raysect.optical.observer import PinholeCamera, PowerPipeline2D
 from raysect.optical.material import AbsorbingSurface
@@ -26,6 +26,7 @@ from raysect.primitive import Cylinder
 
 from cherab.core.model import TotalRadiatedPower
 from cherab.openadas import OpenADAS
+from cherab.generomak.machine import load_first_wall
 from cherab.solps import load_solps_from_raw_output
 
 
@@ -47,17 +48,9 @@ print('Imaging plasma...')
 world = World()
 plasma.parent = world
 
-# Cherab does not yet have a wall geometry specified for Generomak (see
-# https://github.com/cherab/core/issues/212), so we'll just make our own.
-# This will consist of a cylindrical center column and nothing else, which
-# will allow us to position an overview camera to image the whole plasma.
-me = sim.mesh.mesh_extent
-centre_column_radius = 0.9 * me['minr']
-centre_column_height = me['maxz'] - me['minz']
-centre_column_bottom = me['minz']
-Cylinder(radius=centre_column_radius, height=centre_column_height,
-         transform=translate(0, 0, centre_column_bottom),
-         material=AbsorbingSurface(), name='Centre column', parent=world)
+# Load the generomak first wall
+load_first_wall(world)
+
 
 # For each species in the plasma, model the total emission from that species.
 plasma.atomic_data = OpenADAS(permit_extrapolation=True)
@@ -69,9 +62,10 @@ for species in plasma.composition:
 camera = PinholeCamera((128, 128))
 camera.parent = world
 camera.pixel_samples = 10
-camera.transform = (translate(2 * me['maxr'], 0, 0)
+camera.transform = (rotate_z(22.5)
+                    * translate(1.5 * sim.mesh.mesh_extent['maxr'], 0, 0)
                     * rotate_basis(Vector3D(-1, 0, 0), Vector3D(0, 0, 1)))
-camera.fov = 60
+camera.fov = 75
 # The TotalRadiatedPower model is not spectrally resolved. So use a monochromatic
 # pipeline to image the plasma.
 camera.pipelines = [PowerPipeline2D()]
