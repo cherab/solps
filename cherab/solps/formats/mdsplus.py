@@ -44,9 +44,9 @@ def load_solps_from_mdsplus(mds_server, ref_number):
 
     # Load each plasma species in simulation
     ns = conn.get(r'\SOLPS::TOP.IDENT.NS').data()  # Number of species
-    zn = conn.get(r'\SOLPS::TOP.SNAPSHOT.GRID.ZN').data().astype(np.int)  # Nuclear charge
-    am = np.round(conn.get(r'\SOLPS::TOP.SNAPSHOT.GRID.AM').data()).astype(np.int)  # Atomic mass number
-    charge = conn.get(r'\SOLPS::TOP.SNAPSHOT.GRID.ZA').data().astype(np.int)   # Ionisation/charge
+    zn = conn.get(r'\SOLPS::TOP.SNAPSHOT.GRID.ZN').data().astype(int)  # Nuclear charge
+    am = np.round(conn.get(r'\SOLPS::TOP.SNAPSHOT.GRID.AM').data()).astype(int)  # Atomic mass number
+    charge = conn.get(r'\SOLPS::TOP.SNAPSHOT.GRID.ZA').data().astype(int)   # Ionisation/charge
 
     species_list = []
     neutral_indx = []
@@ -155,7 +155,7 @@ def load_solps_from_mdsplus(mds_server, ref_number):
 
     total_rad = linerad + brmrad + neurad
 
-    if total_rad is not 0:
+    if np.any(total_rad != 0):
         sim.total_radiation = total_rad / mesh.vol
 
     return sim
@@ -176,18 +176,18 @@ def load_mesh_from_mdsplus(mds_connection, MdsException):
     vol = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.VOL').data()
 
     # Loading neighbouring cell indices
-    neighbix = np.zeros(r.shape, dtype=np.int)
-    neighbiy = np.zeros(r.shape, dtype=np.int)
+    neighbix = np.zeros(r.shape, dtype=int)
+    neighbiy = np.zeros(r.shape, dtype=int)
 
-    neighbix[0] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:LEFTIX').data().astype(np.int)
-    neighbix[1] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:BOTTOMIX').data().astype(np.int)
-    neighbix[2] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:RIGHTIX').data().astype(np.int)
-    neighbix[3] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:TOPIX').data().astype(np.int)
+    neighbix[0] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:LEFTIX').data().astype(int)
+    neighbix[1] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:BOTTOMIX').data().astype(int)
+    neighbix[2] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:RIGHTIX').data().astype(int)
+    neighbix[3] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:TOPIX').data().astype(int)
 
-    neighbiy[0] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:LEFTIY').data().astype(np.int)
-    neighbiy[1] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:BOTTOMIY').data().astype(np.int)
-    neighbiy[2] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:RIGHTIY').data().astype(np.int)
-    neighbiy[3] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:TOPIY').data().astype(np.int)
+    neighbiy[0] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:LEFTIY').data().astype(int)
+    neighbiy[1] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:BOTTOMIY').data().astype(int)
+    neighbiy[2] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:RIGHTIY').data().astype(int)
+    neighbiy[3] = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:TOPIY').data().astype(int)
 
     neighbix[neighbix == r.shape[2]] = -1
     neighbiy[neighbiy == r.shape[1]] = -1
