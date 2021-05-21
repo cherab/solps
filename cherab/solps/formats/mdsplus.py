@@ -18,9 +18,11 @@
 # under the Licence.
 
 import numpy as np
-import scipy.constants as const
 
-from cherab.core.atomic.elements import lookup_isotope
+from cherab.core.utility import PhotonToJ
+from cherab.core.atomic.elements import lookup_isotope, hydrogen
+from cherab.openadas import OpenADAS
+
 from cherab.solps.mesh_geometry import SOLPSMesh
 from cherab.solps.solps_plasma import SOLPSSimulation, prefer_element, eirene_flux_to_velocity, b2_flux_to_velocity
 
@@ -173,12 +175,11 @@ def load_solps_from_mdsplus(mds_server, ref_number):
 
     halpha_total = halpha_mol + halpha_at
 
-    halpha_wavelength = 656.1
-    photon_energy = const.h * const.c / halpha_wavelength * 1.e9
+    halpha_wavelength = OpenADAS().wavelength(hydrogen, 0, (3, 2))
 
     if isinstance(halpha_total, np.ndarray):
-        sim.halpha_mol_radiation = halpha_mol * photon_energy  # photon s-1 m-3 --> W m-3
-        sim.halpha_total_radiation = halpha_total * photon_energy  # photon s-1 m-3 --> W m-3
+        sim.halpha_mol_radiation = PhotonToJ.to(halpha_mol, halpha_wavelength)  # photon s-1 m-3 --> W m-3
+        sim.halpha_total_radiation = PhotonToJ.to(halpha_total, halpha_wavelength)  # photon s-1 m-3 --> W m-3
 
     return sim
 

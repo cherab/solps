@@ -21,7 +21,9 @@ import os
 import numpy as np
 import scipy.constants as const
 
-from cherab.core.atomic.elements import lookup_isotope
+from cherab.core.utility import PhotonToJ
+from cherab.core.atomic.elements import lookup_isotope, hydrogen
+from cherab.openadas import OpenADAS
 
 from cherab.solps.eirene import load_fort44_file
 from cherab.solps.b2.parse_b2_block_file import load_b2f_file
@@ -169,17 +171,16 @@ def load_solps_from_raw_output(simulation_path, debug=False):
             sim.total_radiation = total_radiation / mesh.vol
 
         # Obtaining molecular and total H-alpha radiation
-        halpha_wavelength = 656.1
-        photon_energy = const.h * const.c / halpha_wavelength * 1.e9
+        halpha_wavelength = OpenADAS().wavelength(hydrogen, 0, (3, 2))
 
         if eirene.emism is not None:
             halpha_mol_radiation = np.zeros((ny, nx))
-            halpha_mol_radiation[1:-1, 1:-1] = eirene.emism[0] * photon_energy
+            halpha_mol_radiation[1:-1, 1:-1] = PhotonToJ.to(eirene.emism[0], halpha_wavelength)
             sim.halpha_mol_radiation = halpha_mol_radiation
 
         if eirene.emist is not None:
             halpha_total_radiation = np.zeros((ny, nx))
-            halpha_total_radiation[1:-1, 1:-1] = eirene.emist[0] * photon_energy
+            halpha_total_radiation[1:-1, 1:-1] = PhotonToJ.to(eirene.emist[0], halpha_wavelength)
             sim.halpha_total_radiation = halpha_total_radiation
 
         sim.eirene_simulation = eirene
