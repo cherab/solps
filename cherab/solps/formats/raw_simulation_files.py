@@ -194,18 +194,18 @@ def create_mesh_from_geom_data(geom_data):
     vol = geom_data['vol']
 
     # Loading neighbouring cell indices
-    neighbix = np.zeros(r.shape, dtype=np.int)
-    neighbiy = np.zeros(r.shape, dtype=np.int)
+    neighbix = np.zeros(r.shape, dtype=int)
+    neighbiy = np.zeros(r.shape, dtype=int)
 
-    neighbix[0] = geom_data['leftix'].astype(np.int)  # poloidal prev.
-    neighbix[1] = geom_data['bottomix'].astype(np.int)  # radial prev.
-    neighbix[2] = geom_data['rightix'].astype(np.int)  # poloidal next
-    neighbix[3] = geom_data['topix'].astype(np.int)  # radial next
+    neighbix[0] = geom_data['leftix'].astype(int)  # poloidal prev.
+    neighbix[1] = geom_data['bottomix'].astype(int)  # radial prev.
+    neighbix[2] = geom_data['rightix'].astype(int)  # poloidal next
+    neighbix[3] = geom_data['topix'].astype(int)  # radial next
 
-    neighbiy[0] = geom_data['leftiy'].astype(np.int)
-    neighbiy[1] = geom_data['bottomiy'].astype(np.int)
-    neighbiy[2] = geom_data['rightiy'].astype(np.int)
-    neighbiy[3] = geom_data['topiy'].astype(np.int)
+    neighbiy[0] = geom_data['leftiy'].astype(int)
+    neighbiy[1] = geom_data['bottomiy'].astype(int)
+    neighbiy[2] = geom_data['rightiy'].astype(int)
+    neighbiy[3] = geom_data['topiy'].astype(int)
 
     # In SOLPS cell indexing starts with -1 (guarding cell), but in SOLPSMesh -1 means no neighbour.
     neighbix += 1

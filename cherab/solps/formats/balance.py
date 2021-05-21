@@ -45,8 +45,8 @@ def load_solps_from_balance(balance_filename):
 
         species_list = []
         neutral_indx = []
-        am = np.round(fhandle.variables['am'].data).astype(np.int)  # Atomic mass number
-        charge = fhandle.variables['za'].data.astype(np.int)   # Ionisation/charge
+        am = np.round(fhandle.variables['am'].data).astype(int)  # Atomic mass number
+        charge = fhandle.variables['za'].data.astype(int)   # Ionisation/charge
         species_names = fhandle.variables['species'].data.copy()
         ns = am.size
         for i in range(ns):
@@ -94,7 +94,7 @@ def load_solps_from_balance(balance_filename):
             for key in fhandle.variables.keys():
                 if 'fna_' in key:
                     fna += fhandle.variables[key].data.copy()
-            if fna is not 0:
+            if np.any(fna != 0):
                 # Obtaining velocity from B2 flux
                 sim.velocities_cylindrical = b2_flux_to_velocity(sim, fna[:, 0], fna[:, 1], parallel_velocity)
 
@@ -164,7 +164,7 @@ def load_solps_from_balance(balance_filename):
             # Save total radiated power to the simulation object
             total_rad = rydberg_energy * el_charge * potential_loss - b2_ploss
 
-        if total_rad is not 0:
+        if np.any(total_rad != 0):
             sim.total_radiation = total_rad
 
     return sim
@@ -179,18 +179,18 @@ def load_mesh_from_netcdf(fhandle):
     vol = fhandle.variables['vol'].data.copy()
 
     # Loading neighbouring cell indices
-    neighbix = np.zeros(r.shape, dtype=np.int)
-    neighbiy = np.zeros(r.shape, dtype=np.int)
+    neighbix = np.zeros(r.shape, dtype=int)
+    neighbiy = np.zeros(r.shape, dtype=int)
 
-    neighbix[0] = fhandle.variables['leftix'].data.astype(np.int)  # poloidal prev.
-    neighbix[1] = fhandle.variables['bottomix'].data.astype(np.int)  # radial prev.
-    neighbix[2] = fhandle.variables['rightix'].data.astype(np.int)  # poloidal next
-    neighbix[3] = fhandle.variables['topix'].data.astype(np.int)  # radial next
+    neighbix[0] = fhandle.variables['leftix'].data.astype(int)  # poloidal prev.
+    neighbix[1] = fhandle.variables['bottomix'].data.astype(int)  # radial prev.
+    neighbix[2] = fhandle.variables['rightix'].data.astype(int)  # poloidal next
+    neighbix[3] = fhandle.variables['topix'].data.astype(int)  # radial next
 
-    neighbiy[0] = fhandle.variables['leftiy'].data.astype(np.int)
-    neighbiy[1] = fhandle.variables['bottomiy'].data.astype(np.int)
-    neighbiy[2] = fhandle.variables['rightiy'].data.astype(np.int)
-    neighbiy[3] = fhandle.variables['topiy'].data.astype(np.int)
+    neighbiy[0] = fhandle.variables['leftiy'].data.astype(int)
+    neighbiy[1] = fhandle.variables['bottomiy'].data.astype(int)
+    neighbiy[2] = fhandle.variables['rightiy'].data.astype(int)
+    neighbiy[3] = fhandle.variables['topiy'].data.astype(int)
 
     # In SOLPS cell indexing starts with -1 (guarding cell), but in SOLPSMesh -1 means no neighbour.
     neighbix += 1
