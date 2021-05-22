@@ -19,7 +19,7 @@
 
 import os
 import numpy as np
-import scipy.constants as const
+from scipy.constants import elementary_charge
 
 from cherab.core.utility import PhotonToJ
 from cherab.core.atomic.elements import lookup_isotope, hydrogen
@@ -106,11 +106,11 @@ def load_solps_from_raw_output(simulation_path, debug=False):
     # sim.b_field_cylindrical is created automatically
 
     # Load electron species
-    sim.electron_temperature = mesh_data_dict['te'] / const.elementary_charge
+    sim.electron_temperature = mesh_data_dict['te'] / elementary_charge
     sim.electron_density = mesh_data_dict['ne']
 
     # Load ion temperature
-    sim.ion_temperature = mesh_data_dict['ti'] / const.elementary_charge
+    sim.ion_temperature = mesh_data_dict['ti'] / elementary_charge
 
     # Load species density
     sim.species_density = mesh_data_dict['na']
@@ -159,7 +159,7 @@ def load_solps_from_raw_output(simulation_path, debug=False):
             ta[:, 1:-1, i] = eirene.ta[:, :, i]
         for i, j in ((0, 0), (0, -1), (-1, 0), (-1, -1)):
             ta[:, i, j] = eirene.ta[:, i, j]
-        sim.neutral_temperature = ta / const.elementary_charge
+        sim.neutral_temperature = ta / elementary_charge
 
         # Obtaining total radiation
         if have_b2plasmf and eirene.eradt is not None:
