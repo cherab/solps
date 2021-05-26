@@ -28,13 +28,36 @@ simulation_directory = os.path.join(demos_directory, 'data', 'raw')
 print('Loading simulation...')
 sim = load_solps_from_raw_output(simulation_directory)
 
-#get the neccessary data from SOLPSSimulation
+# plot quadrangle and triangle meshes
+# plot the quadrangle b2 mesh
+ax = sim.mesh.plot_quadrangle_mesh()
+ax.set_title("Quadrangle B2 Mesh")
+ax.get_figure().set_size_inches((10, 20))
+
+#plot the quadrangle b2 mesh with b2 ion temperature values
+ax = sim.mesh.plot_quadrangle_mesh(solps_data=sim.ion_temperature)
+ax.get_figure().colorbar(ax.collections[0], aspect=40)
+ax.get_figure().set_size_inches((10, 20))
+ax.set_title("B2 Ion Temperature [eV]")
+plt.show()
+
+# axes can also be passed as an argument
+fig_pass, ax = plt.subplots(figsize=(10, 20))
+ax = sim.mesh.plot_triangle_mesh(solps_data=sim.ion_temperature, ax=ax)
+ax.get_figure().colorbar(ax.collections[0], aspect=40)
+ax.get_figure().set_size_inches((10, 20))
+ax.set_title("Cherab Triangle Mesh with Ion Temperature [eV]")
+plt.show()
+
+# The following part only illustrates what is done within the plot methods
+
+# get the neccessary data from SOLPSSimulation
 vertices = sim.mesh.vertex_coordinates
 quadrangles = sim.mesh.quadrangles
 mesh_extent = sim.mesh.mesh_extent
 quadrangle_to_grid_map = sim.mesh.quadrangle_to_grid_map
 
-#plot the quadrangle b2 mesh
+# plot the quadrangle b2 mesh
 collection_mesh = PolyCollection(vertices[quadrangles], facecolor="none")
 
 fig_mesh, ax = plt.subplots(figsize=(10, 20))
@@ -46,7 +69,7 @@ ax.set_ylabel("R [m]")
 ax.set_ylabel("Z [m]")
 ax.set_title("Quadrangle B2 Mesh")
 
-#plot the quadrangle b2 mesh with b2 ion temperature values
+# plot the quadrangle b2 mesh with b2 ion temperature values
 collection_values = PolyCollection(vertices[quadrangles])
 collection_values.set_array(sim.ion_temperature[quadrangle_to_grid_map[:,0], quadrangle_to_grid_map[:,1]])
 
@@ -58,3 +81,5 @@ ax.set_aspect(1)
 ax.set_ylabel("R [m]")
 ax.set_ylabel("Z [m]")
 ax.set_title("B2 Ion Temperature")
+
+plt.show()
