@@ -20,7 +20,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
-from matplotlib.collections import PatchCollection
+from matplotlib.collections import PolyCollection
 
 
 class SOLPSMesh:
@@ -120,19 +120,7 @@ class SOLPSMesh:
         # Pull out the index number for each unique vertex in this rectangular cell.
         # Unusual vertex indexing is based on SOLPS output, see Matlab code extract from David Moulton.
         ng = self._nx * self._ny  # grid size
-        self._triangles[0::2, 0] = unique_vertices[0:ng]
-        self._triangles[0::2, 1] = unique_vertices[2 * ng: 3 * ng]
-        self._triangles[0::2, 2] = unique_vertices[3 * ng: 4 * ng]
-        # Split the quad cell into two triangular cells.
-        self._triangles[1::2, 0] = unique_vertices[3 * ng: 4 * ng]
-        self._triangles[1::2, 1] = unique_vertices[ng: 2 * ng]
-        self._triangles[1::2, 2] = unique_vertices[0:ng]
-
-        # Each triangle cell is mapped to the tuple ID (ix, iy) of its parent mesh cell.
         ym, xm = np.meshgrid(np.arange(self._ny, dtype=np.int32), np.arange(self._nx, dtype=np.int32), indexing='ij')
-        self._triangle_to_grid_map[::2, 0] = ym.flatten()
-        self._triangle_to_grid_map[::2, 1] = xm.flatten()
-        self._triangle_to_grid_map[1::2] = self._triangle_to_grid_map[::2]
 
         # add quadrangle b2 grid
         self._quadrangles = np.zeros((ng, 4), dtype=np.int32)
@@ -140,12 +128,28 @@ class SOLPSMesh:
         self._quadrangles[:, 1] = unique_vertices[2 * ng: 3 * ng]
         self._quadrangles[:, 2] = unique_vertices[3 * ng: 4 * ng]
         self._quadrangles[:, 3] = unique_vertices[ng: 2 * ng]
-        
+
         # add mapping from quadrangles to the b2 grid
         self._quadrangle_to_grid_map = np.zeros((ng, 2), dtype=np.int32)
         self._quadrangle_to_grid_map[:, 0] = ym.flatten()
         self._quadrangle_to_grid_map[:, 1] = xm.flatten()
 
+        # Number of triangles must be equal to number of rectangle centre points times 2.
+        self._num_tris = ng * 2
+        self._triangles = np.zeros((self._num_tris, 3), dtype=np.int32)
+        self._triangles[0::2, 0] = self._quadrangles[:, 0]
+        self._triangles[0::2, 1] = self._quadrangles[:, 1]
+        self._triangles[0::2, 2] = self._quadrangles[:, 2]
+        # Split the quad cell into two triangular cells.
+        self._triangles[1::2, 0] = self._quadrangles[:, 2]
+        self._triangles[1::2, 1] = self._quadrangles[:, 3]
+        self._triangles[1::2, 2] = self._quadrangles[:, 0]
+
+        # Each triangle cell is mapped to the tuple ID (ix, iy) of its parent mesh cell.
+        self._triangle_to_grid_map = np.zeros((self._num_tris, 2), dtype=np.int32)
+        self._triangle_to_grid_map[::2, 0] = ym.flatten()
+        self._triangle_to_grid_map[::2, 1] = xm.flatten()
+        self._triangle_to_grid_map[1::2] = self._triangle_to_grid_map[::2]
 
     @property
     def nx(self):
@@ -318,37 +322,51 @@ class SOLPSMesh:
 
         return vec_pol
 
-    def plot_triangle_mesh(self):
+    def plot_triangle_mesh(self, solps_data=None, ax=None):
         """
         Plot the triangle mesh grid geometry to a matplotlib figure.
+
+        :param solps_data: Data array defined on the SOLPS mesh
         """
-        fig, ax = plt.subplots()
-        patches = []
-        for triangle in self.triangles:
-            vertices = self.vertex_coordinates[triangle]
-            patches.append(Polygon(vertices, closed=True))
-        p = PatchCollection(patches, facecolors='none', edgecolors='b')
-        ax.add_collection(p)
+        if ax is None:
+            _, ax = plt.subplots(constrained_layout=True)
+
+        verts = self.vertex_coordinates[self.triangles]
+        if solps_data is None:
+            collection_mesh = PolyCollection(verts, facecolor="none", edgecolor='b', linewidth=0.5)
+        else:
+            collection_mesh = PolyCollection(verts)
+            collection_mesh.set_array(solps_data[self.triangle_to_grid_map[:, 0], self.triangle_to_grid_map[:, 1]])
+        ax.add_collection(collection_mesh)
         ax.set_aspect(1)
         ax.set_xlim(self.mesh_extent["minr"], self.mesh_extent["maxr"])
         ax.set_ylim(self.mesh_extent["minz"], self.mesh_extent["maxz"])
+        ax.set_xlabel("R [m]")
+        ax.set_ylabel("Z [m]")
 
         return ax
-    
-    def plot_quadrangle_mesh(self):
+
+    def plot_quadrangle_mesh(self, solps_data=None, ax=None):
         """
         Plot the quadrangle mesh grid geometry to a matplotlib figure.
+
+        :param solps_data: Data array defined on the SOLPS mesh
         """
-        fig, ax = plt.subplots()
-        patches = []
-        for quadrangle in self.quadrangles:
-            vertices = self.vertex_coordinates[quadrangle]
-            patches.append(Polygon(vertices, closed=True))
-        p = PatchCollection(patches, facecolors='none', edgecolors='b')
-        ax.add_collection(p)
+        
+        if ax is None:
+            _, ax = plt.subplots(constrained_layout=True)
+
+        verts = self.vertex_coordinates[self.quadrangles]
+        if solps_data is None:
+            collection_mesh = PolyCollection(verts, facecolor="none", edgecolor='b', linewidth=0.5)
+        else:
+            collection_mesh = PolyCollection(verts)
+            collection_mesh.set_array(solps_data[self.quadrangle_to_grid_map[:, 0], self.quadrangle_to_grid_map[:, 1]])
+        ax.add_collection(collection_mesh)
         ax.set_aspect(1)
         ax.set_xlim(self.mesh_extent["minr"], self.mesh_extent["maxr"])
         ax.set_ylim(self.mesh_extent["minz"], self.mesh_extent["maxz"])
+        ax.set_xlabel("R [m]")
+        ax.set_ylabel("Z [m]")
 
         return ax
-        
