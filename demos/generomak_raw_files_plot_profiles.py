@@ -102,7 +102,7 @@ print('Plasma and simulation sampled quantities are identical.')
 ###############################################################################
 # Plot the sampled vales.
 ###############################################################################
-mesh.plot_mesh()
+mesh.plot_triangle_mesh()
 plt.title('Mesh geometry')
 
 
