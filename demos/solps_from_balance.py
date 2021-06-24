@@ -74,7 +74,7 @@ for i, x in enumerate(xrange):
         c5_samples[j, i] = c5.distribution.density(x, 0.0, y)
         c6_samples[j, i] = c6.distribution.density(x, 0.0, y)
 
-mesh.plot_mesh()
+mesh.plot_triangle_mesh()
 plt.title('mesh geometry')
 
 plt.figure()

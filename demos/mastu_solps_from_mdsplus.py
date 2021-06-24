@@ -80,7 +80,7 @@ for i, x in enumerate(xrange):
         d0_velocity[j, i] = d0.distribution.bulk_velocity(x, 0.0, y).length
         d1_velocity[j, i] = d1.distribution.bulk_velocity(x, 0.0, y).length
 
-mesh.plot_mesh()
+mesh.plot_triangle_mesh()
 plt.title('mesh geometry')
 
 plt.figure()
