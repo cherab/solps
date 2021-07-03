@@ -58,7 +58,6 @@ sim = load_solps_from_raw_output(simulation_directory)
 
 print('Creating plasma...')
 plasma = sim.create_plasma()
-plasma.atomic_data = OpenADAS(permit_extrapolation=True)
 
 ###############################################################################
 # Image the plasma with a camera.
