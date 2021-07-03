@@ -19,7 +19,6 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.patches import Polygon
 from matplotlib.collections import PolyCollection
 
 
@@ -61,12 +60,6 @@ class SOLPSMesh:
         if neighbiy.shape != r.shape:
             raise ValueError('Shape of neighbix array must be {0}, but it is  {}.'.format(r.shape, neighbiy.shape))
 
-        self._cr = r.sum(0) / 4.
-        self._cz = z.sum(0) / 4.
-
-        self._nx = r.shape[2]  # poloidal
-        self._ny = r.shape[1]  # radial
-
         self._r = r
         self._z = z
 
@@ -74,6 +67,19 @@ class SOLPSMesh:
 
         self._neighbix = neighbix.astype(int)
         self._neighbiy = neighbiy.astype(int)
+
+        self._initial_setup()
+
+    def _initial_setup(self):
+
+        r = self._r
+        z = self._z
+
+        self._cr = r.sum(0) / 4.
+        self._cz = z.sum(0) / 4.
+
+        self._nx = r.shape[2]  # poloidal
+        self._ny = r.shape[1]  # radial
 
         self.vessel = None
 
@@ -111,11 +117,6 @@ class SOLPSMesh:
 
         # Work out the extent of the mesh.
         self._mesh_extent = {"minr": r.min(), "maxr": r.max(), "minz": z.min(), "maxz": z.max()}
-
-        # Number of triangles must be equal to number of rectangle centre points times 2.
-        self._num_tris = self._nx * self._ny * 2
-        self._triangles = np.zeros((self._num_tris, 3), dtype=np.int32)
-        self._triangle_to_grid_map = np.zeros((self._num_tris, 2), dtype=np.int32)
 
         # Pull out the index number for each unique vertex in this rectangular cell.
         # Unusual vertex indexing is based on SOLPS output, see Matlab code extract from David Moulton.
@@ -230,12 +231,12 @@ class SOLPSMesh:
     def triangles(self):
         """Array of triangle vertex indices with (num_thiangles, 3) shape."""
         return self._triangles
-    
+
     @property
     def quadrangles(self):
         """Array of quadrangle vertex indices with (num_thiangles, 3) shape."""
         return self._quadrangles
-    
+
     @property
     def poloidal_basis_vector(self):
         """
@@ -293,6 +294,14 @@ class SOLPSMesh:
             'neighbiy': self._neighbiy
         }
         return state
+
+    def __setstate__(self, state):
+        self._r = state['r']
+        self._z = state['z']
+        self._vol = state['vol']
+        self._neighbix = state['neighbix']
+        self._neighbiy = state['neighbiy']
+        self._initial_setup()
 
     def to_cartesian(self, vec_pol):
         """
@@ -352,7 +361,7 @@ class SOLPSMesh:
 
         :param solps_data: Data array defined on the SOLPS mesh
         """
-        
+
         if ax is None:
             _, ax = plt.subplots(constrained_layout=True)
 

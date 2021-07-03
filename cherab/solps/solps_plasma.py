@@ -47,17 +47,24 @@ class SOLPSSimulation:
         else:
             raise ValueError('Argument "mesh" must be a SOLPSMesh instance.')
 
-        # Make Mesh Interpolator function for inside/outside mesh test.
-        inside_outside_data = np.ones((self._mesh.ny, self._mesh.nx))
-        self._inside_mesh = SOLPSFunction2D(mesh.vertex_coordinates, mesh.triangles, mesh.triangle_to_grid_map, inside_outside_data)
-
-        # Creating a sample SOLPSVectorFunction2D for KDtree to use later
-        sample_vector = np.ones((3, self._mesh.ny, self._mesh.nx))
-        self._sample_vector_f2d = SOLPSVectorFunction2D(mesh.vertex_coordinates, mesh.triangles, mesh.triangle_to_grid_map, sample_vector)
-
         if not len(species_list):
             raise ValueError('Argument "species_list" must contain at least one species.')
         self._species_list = tuple(species_list)  # adding additional species is not allowed
+
+        self._initial_setup()
+
+    def _initial_setup(self):
+
+        # Make Mesh Interpolator function for inside/outside mesh test.
+        inside_outside_data = np.ones((self._mesh.ny, self._mesh.nx))
+        self._inside_mesh = SOLPSFunction2D(self._mesh.vertex_coordinates, self._mesh.triangles,
+                                            self._mesh.triangle_to_grid_map, inside_outside_data)
+
+        # Creating a sample SOLPSVectorFunction2D for KDtree to use later
+        sample_vector = np.ones((3, self._mesh.ny, self._mesh.nx))
+        self._sample_vector_f2d = SOLPSVectorFunction2D(self._mesh.vertex_coordinates, self._mesh.triangles,
+                                                        self._mesh.triangle_to_grid_map, sample_vector)
+
         self._neutral_list = tuple([sp for sp in self._species_list if sp[1] == 0])
 
         self._electron_temperature = None
@@ -601,7 +608,7 @@ class SOLPSSimulation:
 
     def __getstate__(self):
         state = {
-            'mesh': self._mesh.__getstate__(),
+            'mesh': self._mesh,
             'species_list': self._species_list,
             'electron_temperature': self._electron_temperature,
             'ion_temperature': self._ion_temperature,
@@ -619,6 +626,9 @@ class SOLPSSimulation:
         return state
 
     def __setstate__(self, state):
+        self._mesh = state['mesh']
+        self._species_list = state['species_list']
+        self._initial_setup()
         if state['electron_temperature'] is not None:
             self.electron_temperature = state['electron_temperature']  # will create _f2d() and _f3d()
         if state['ion_temperature'] is not None:
@@ -630,7 +640,7 @@ class SOLPSSimulation:
         if state['species_density'] is not None:
             self.species_density = state['species_density']
         if state['electron_velocities_cylindrical'] is not None:
-            self.velocities_cylindrical = state['electron_velocities_cylindrical']
+            self.electron_velocities_cylindrical = state['electron_velocities_cylindrical']
         if state['velocities_cylindrical'] is not None:
             self.velocities_cylindrical = state['velocities_cylindrical']
         if state['total_radiation'] is not None:
@@ -642,10 +652,21 @@ class SOLPSSimulation:
         self._eirene = state['eirene']
 
     def save(self, filename):
+        """
+        Saves SOLPSSimulation to file.
+        """
+        with open(filename, 'wb') as file_handle:
+            pickle.dump(self, file_handle)
 
-        file_handle = open(filename, 'wb')
-        pickle.dump(self.__getstate__(), file_handle)
-        file_handle.close()
+    @classmethod
+    def load(cls, filename):
+        """
+        Loads SOLPSSimulation from file.
+        """
+        with open(filename, 'rb') as file_handle:
+            sim = pickle.load(file_handle)
+
+        return sim
 
     def create_plasma(self, parent=None, transform=None, name=None):
         """
