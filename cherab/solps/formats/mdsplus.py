@@ -203,7 +203,7 @@ def load_mesh_from_mdsplus(mds_connection, MdsException):
     try:
         vessel = mds_connection.get(r'\SOLPS::TOP.SNAPSHOT.GRID:VESSEL').data()[:]
         mesh.vessel = vessel
-    except (MdsException, TypeError):
+    except (MdsException, TypeError, IndexError):
         pass
 
     return mesh
