@@ -34,20 +34,6 @@ from cherab.solps.models import make_solps_emitter
 # The plasma object is not connected to the scenegraph. Instead, the emitter is created
 # with make_solps_emitter(). This approach significantly speeds up the simulation.
 
-
-def total_radiation_on_mesh(mesh, plasma, spectrum):
-    # Calculates total radiation power density on SOLPS mesh
-    direction = Vector3D(0, 0, 1)
-    total_radiation = np.zeros((mesh.ny, mesh.nx))
-    for model in plasma.models:
-        for ix in range(total_radiation.shape[1]):
-            for iy in range(total_radiation.shape[0]):
-                point = Point3D(mesh.cr[iy, ix], 0, mesh.cz[iy, ix])
-                total_radiation[iy, ix] += 4. * np.pi * model.emission(point, direction, spectrum.new_spectrum()).total()
-
-    return total_radiation
-
-
 ###############################################################################
 # Load the simulation and create a plasma object from it.
 ###############################################################################
@@ -59,11 +45,37 @@ sim = load_solps_from_raw_output(simulation_directory)
 print('Creating plasma...')
 plasma = sim.create_plasma()
 
+# For each species in the plasma, add the total radiation model.
+plasma.atomic_data = OpenADAS(permit_extrapolation=True)
+for species in plasma.composition:
+    if species.charge < species.element.atomic_number:
+        plasma.models.add(TotalRadiatedPower(species.element, species.charge))
+
+###############################################################################
+# Cache the total radiation power density on SOLPS mesh.
+###############################################################################
+print('Caching total radiation power density on SOLPS mesh...')
+# Total radiation does not depend on wavelength, therefore Spectrum can be initialised with any values.
+spectrum = Spectrum(min_wavelength=375., max_wavelength=740., bins=1)
+# Calculating total radiation power density on SOLPS mesh
+direction = Vector3D(0, 0, 1)
+total_radiation = np.zeros((sim.mesh.ny, sim.mesh.nx))
+for model in plasma.models:
+    for ix in range(total_radiation.shape[1]):
+        for iy in range(total_radiation.shape[0]):
+            point = Point3D(sim.mesh.cr[iy, ix], 0, sim.mesh.cz[iy, ix])
+            total_radiation[iy, ix] += 4. * np.pi * model.emission(point, direction, spectrum.new_spectrum()).total()
+sim.total_radiation = total_radiation  # this creates sim.total_radiation_f2d and sim.total_radiation_f3d
+
+# Make the emitter from sim.total_radiation_f2d() function
+solps_emitter = make_solps_emitter(sim.mesh, sim.total_radiation_f2d)
+
 ###############################################################################
 # Image the plasma with a camera.
 ###############################################################################
 world = World()
-# Do not add plasma object to the scenegraph!
+# Do not add plasma object to the scenegraph! Add the emitter instead.
+solps_emitter.parent = world
 
 # Load the generomak first wall
 load_first_wall(world)
@@ -78,23 +90,8 @@ camera.transform = (rotate_z(22.5)
 camera.fov = 75
 # The TotalRadiatedPower model is not spectrally resolved. So use a monochromatic
 # pipeline to image the plasma.
-camera.pipelines = [PowerPipeline2D()]
+camera.pipelines = [PowerPipeline2D(display_unsaturated_fraction=0.9999)]
 camera.spectral_bins = 1
-
-# For each species in the plasma, add the total radiation model.
-plasma.atomic_data = OpenADAS(permit_extrapolation=True)
-for species in plasma.composition:
-    if species.charge < species.element.atomic_number:
-        plasma.models.add(TotalRadiatedPower(species.element, species.charge))
-
-# Caching the total radiation power density on the SOLPS mesh.
-print('Caching total radiation power density on SOLPS mesh...')
-spectrum = Spectrum(camera.min_wavelength, camera.max_wavelength, camera.spectral_bins)
-total_radiation = total_radiation_on_mesh(sim.mesh, plasma, spectrum)
-sim.total_radiation = total_radiation  # this creates sim.total_radiation_f2d and sim.total_radiation_f3d
-
-# Make the emitter from sim.total_radiation_f2d() function
-solps_emitter = make_solps_emitter(sim.mesh, sim.total_radiation_f2d, world)
 
 print('Imaging plasma...')
 plt.ion()
