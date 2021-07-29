@@ -30,7 +30,7 @@ from cherab.solps.solps_plasma import SOLPSSimulation, prefer_element, eirene_fl
 
 
 # Code based on script by Felix Reimold (2016)
-def load_solps_from_raw_output(simulation_path, baserun_path=None, debug=False):
+def load_solps_from_raw_output(simulation_path, debug=False, baserun_path=None):
     """
     Load a SOLPS simulation from raw SOLPS output files.
 
@@ -42,8 +42,11 @@ def load_solps_from_raw_output(simulation_path, baserun_path=None, debug=False):
 
     :param str simulation_path: String path to simulation directory.
                                 Example: '/home/user/solps5/runs/simulation_name/run'.
+    :param bool debug: A flag for displaying textual debugging information when parsing
+                       the SOLPS files. Defaults to False.
     :param str baserun_path: Any files missing in the 'simulation_path' will be searched for
                              in 'baserun_path'. Defaults to 'simulation_path/../baserun' if None.
+
     :rtype: SOLPSSimulation
     """
 
