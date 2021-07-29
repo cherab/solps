@@ -42,6 +42,9 @@ def load_solps_from_raw_output(simulation_path, debug=False):
 
     :param str simulation_path: String path to simulation directory.
                                 Example: '/home/user/solps5/runs/simulation_name/run'.
+                                Note that 'b2fgmtry' will be searched for in
+                                'simulation_path/../baserun', if it is not found in
+                                'simulation_path'.
     :rtype: SOLPSSimulation
     """
 
