@@ -41,6 +41,7 @@ def load_solps_from_raw_output(simulation_path, debug=False):
     * Eirene output file (fort.44), optional
 
     :param str simulation_path: String path to simulation directory.
+                                Example: '/home/user/solps5/runs/simulation_name/run'.
     :rtype: SOLPSSimulation
     """
 
@@ -54,7 +55,9 @@ def load_solps_from_raw_output(simulation_path, debug=False):
 
     # Load SOLPS mesh geometry
     if not os.path.isfile(mesh_file_path):
-        raise RuntimeError("No B2 b2fgmtry file found in SOLPS output directory.")
+        mesh_file_path = os.path.join(simulation_path, '../baserun/b2fgmtry')
+        if not os.path.isfile(mesh_file_path):
+            raise RuntimeError("No B2 b2fgmtry file found in SOLPS output directory.")
     _, _, geom_data_dict = load_b2f_file(mesh_file_path, debug=debug)  # geom_data_dict is needed also for magnetic field
 
     if not os.path.isfile(b2_state_file):
