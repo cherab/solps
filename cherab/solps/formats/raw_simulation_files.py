@@ -30,7 +30,7 @@ from cherab.solps.solps_plasma import SOLPSSimulation, prefer_element, eirene_fl
 
 
 # Code based on script by Felix Reimold (2016)
-def load_solps_from_raw_output(simulation_path, debug=False):
+def load_solps_from_raw_output(simulation_path, baserun_path=None, debug=False):
     """
     Load a SOLPS simulation from raw SOLPS output files.
 
@@ -42,32 +42,31 @@ def load_solps_from_raw_output(simulation_path, debug=False):
 
     :param str simulation_path: String path to simulation directory.
                                 Example: '/home/user/solps5/runs/simulation_name/run'.
-                                Note that 'b2fgmtry' will be searched for in
-                                'simulation_path/../baserun', if it is not found in
-                                'simulation_path'.
+    :param str baserun_path: Any files missing in the 'simulation_path' will be searched for
+                             in 'baserun_path'. Defaults to 'simulation_path/../baserun' if None.
     :rtype: SOLPSSimulation
     """
 
     if not os.path.isdir(simulation_path):
         raise RuntimeError("simulation_path must be a valid directory.")
 
-    mesh_file_path = os.path.join(simulation_path, 'b2fgmtry')
-    b2_state_file = os.path.join(simulation_path, 'b2fstate')
-    b2_plasma_file = os.path.join(simulation_path, 'b2fplasmf')
-    eirene_fort44_file = os.path.join(simulation_path, "fort.44")
+    baserun_path = baserun_path or os.path.join(simulation_path, '../baserun')
+
+    mesh_file_path = find_solps_file(simulation_path, baserun_path, 'b2fgmtry')
+    b2_state_file = find_solps_file(simulation_path, baserun_path, 'b2fstate')
+    b2_plasma_file = find_solps_file(simulation_path, baserun_path, 'b2fplasmf')
+    eirene_fort44_file = find_solps_file(simulation_path, baserun_path, 'fort.44')
 
     # Load SOLPS mesh geometry
-    if not os.path.isfile(mesh_file_path):
-        mesh_file_path = os.path.join(simulation_path, '../baserun/b2fgmtry')
-        if not os.path.isfile(mesh_file_path):
-            raise RuntimeError("No B2 b2fgmtry file found in SOLPS output directory.")
+    if mesh_file_path is None:
+        raise RuntimeError("No B2 b2fgmtry file found in SOLPS output directory.")
     _, _, geom_data_dict = load_b2f_file(mesh_file_path, debug=debug)  # geom_data_dict is needed also for magnetic field
 
-    if not os.path.isfile(b2_state_file):
+    if b2_state_file is None:
         raise RuntimeError("No B2 b2fstate file found in SOLPS output directory.")
     header_dict, sim_info_dict, mesh_data_dict = load_b2f_file(b2_state_file, debug=debug)
 
-    if not os.path.isfile(b2_plasma_file):
+    if b2_plasma_file is None:
         print("Warning! No B2 b2fplasmf file found in SOLPS output directory. "
               "No total_radiation data will be available.")
         have_b2plasmf = False
@@ -75,7 +74,7 @@ def load_solps_from_raw_output(simulation_path, debug=False):
         _, _, plasma_solution_dict = load_b2f_file(b2_plasma_file, debug=debug, header_dict=header_dict)
         have_b2plasmf = True
 
-    if not os.path.isfile(eirene_fort44_file):
+    if eirene_fort44_file is None:
         print("Warning! No EIRENE fort.44 file found in SOLPS output directory. "
               "Assuming B2 stand-alone simulation.")
         b2_standalone = True
@@ -177,6 +176,26 @@ def load_solps_from_raw_output(simulation_path, debug=False):
         sim.eirene_simulation = eirene
 
     return sim
+
+
+def find_solps_file(simulation_path, baserun_path, filename):
+    """
+    Searches for a SOLPS output file in the current simulation and baserun directories.
+
+    Returns a path to the baserun version if the file is not found in the current simulation
+    directory.
+    Returns None if the file is not found anywhere.
+    """
+
+    solps_file = os.path.join(simulation_path, filename)
+    if not os.path.isfile(solps_file):
+        solps_file = os.path.join(baserun_path, filename)
+        if not os.path.isfile(solps_file):
+            return None
+        print("Warning! File {} is not found in {}.".format(filename, simulation_path),
+              "Will use the version from {}.".format(baserun_path))
+
+    return solps_file
 
 def create_mesh_from_geom_data(geom_data):
 
