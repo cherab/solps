@@ -187,25 +187,6 @@ def load_solps_from_raw_output(simulation_path='', debug=False, mesh_file_path=N
     return sim
 
 
-def find_solps_file(simulation_path, baserun_path, filename):
-    """
-    Searches for a SOLPS output file in the current simulation and baserun directories.
-
-    Returns a path to the baserun version if the file is not found in the current simulation
-    directory.
-    Returns None if the file is not found anywhere.
-    """
-
-    solps_file = os.path.join(simulation_path, filename)
-    if not os.path.isfile(solps_file):
-        solps_file = os.path.join(baserun_path, filename)
-        if not os.path.isfile(solps_file):
-            return None
-        print("Warning! File {} is not found in {}.".format(filename, simulation_path),
-              "Will use the version from {}.".format(baserun_path))
-
-    return solps_file
-
 def create_mesh_from_geom_data(geom_data):
 
     r = geom_data['crx']
