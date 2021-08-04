@@ -30,7 +30,9 @@ from cherab.solps.solps_plasma import SOLPSSimulation, prefer_element, eirene_fl
 
 
 # Code based on script by Felix Reimold (2016)
-def load_solps_from_raw_output(simulation_path, debug=False, baserun_path=None):
+def load_solps_from_raw_output(simulation_path='', debug=False, mesh_file_path=None,
+                               b2_state_file_path=None, b2_plasma_file_path=None,
+                               eirene_fort44_file_path=None):
     """
     Load a SOLPS simulation from raw SOLPS output files.
 
@@ -41,49 +43,53 @@ def load_solps_from_raw_output(simulation_path, debug=False, baserun_path=None):
     * Eirene output file (fort.44), optional
 
     :param str simulation_path: String path to simulation directory.
+                                The SOLPS output files will be searched for in this directory
+                                by their default names, unless the paths to specific files are
+                                explicitly provided by the user.
                                 Example: '/home/user/solps5/runs/simulation_name/run'.
+                                Defaults to the current working directory.
     :param bool debug: A flag for displaying textual debugging information when parsing
                        the SOLPS files. Defaults to False.
-    :param str baserun_path: Any files missing in the 'simulation_path' will be searched for
-                             in 'baserun_path'. Defaults to 'simulation_path/../baserun' if None.
+    :param str mesh_file_path: String path to mesh description file (b2fgmtry).
+                               Defaults to '{simulation_path}/b2fgmtry' if None.
+    :param str b2_state_file_path: String path to B2 plasma state file (b2fstate).
+                                   Defaults to '{simulation_path}/b2fstate' if None.
+    :param str b2_plasma_file_path: String path to formatted B2 plasma solution file (b2fplasmf).
+                                    Defaults to '{simulation_path}/b2fplasmf' if None.
+    :param str eirene_fort44_file_path: String path to Eirene output file (fort.44).
+                                        Defaults to '{simulation_path}/fort.44' if None.
 
     :rtype: SOLPSSimulation
     """
 
-    if not os.path.isdir(simulation_path):
-        raise RuntimeError("simulation_path must be a valid directory.")
+    mesh_file_path = mesh_file_path or os.path.join(simulation_path, 'b2fgmtry')
+    b2_state_file_path = b2_state_file_path or os.path.join(simulation_path, 'b2fstate')
+    b2_plasma_file_path = b2_plasma_file_path or os.path.join(simulation_path, 'b2fplasmf')
+    eirene_fort44_file_path = eirene_fort44_file_path or os.path.join(simulation_path, 'fort.44')
 
-    baserun_path = baserun_path or os.path.join(simulation_path, '../baserun')
+    if not os.path.isfile(mesh_file_path):
+        raise RuntimeError("No B2 mesh description file ({}) found.".format(mesh_file_path))
+    _, _, geom_data_dict = load_b2f_file(mesh_file_path, debug=debug)
 
-    mesh_file_path = find_solps_file(simulation_path, baserun_path, 'b2fgmtry')
-    b2_state_file = find_solps_file(simulation_path, baserun_path, 'b2fstate')
-    b2_plasma_file = find_solps_file(simulation_path, baserun_path, 'b2fplasmf')
-    eirene_fort44_file = find_solps_file(simulation_path, baserun_path, 'fort.44')
+    if not os.path.isfile(b2_state_file_path):
+        raise RuntimeError("No B2 plasma state file ({}) found.".format(b2_state_file_path))
+    header_dict, sim_info_dict, mesh_data_dict = load_b2f_file(b2_state_file_path, debug=debug)
 
-    # Load SOLPS mesh geometry
-    if mesh_file_path is None:
-        raise RuntimeError("No B2 b2fgmtry file found in SOLPS output directory.")
-    _, _, geom_data_dict = load_b2f_file(mesh_file_path, debug=debug)  # geom_data_dict is needed also for magnetic field
-
-    if b2_state_file is None:
-        raise RuntimeError("No B2 b2fstate file found in SOLPS output directory.")
-    header_dict, sim_info_dict, mesh_data_dict = load_b2f_file(b2_state_file, debug=debug)
-
-    if b2_plasma_file is None:
-        print("Warning! No B2 b2fplasmf file found in SOLPS output directory. "
+    if not os.path.isfile(b2_plasma_file_path):
+        print("Warning! No B2 plasma solution formatted file ({}) found.".format(b2_plasma_file_path),
               "No total_radiation data will be available.")
         have_b2plasmf = False
     else:
-        _, _, plasma_solution_dict = load_b2f_file(b2_plasma_file, debug=debug, header_dict=header_dict)
+        _, _, plasma_solution_dict = load_b2f_file(b2_plasma_file_path, debug=debug, header_dict=header_dict)
         have_b2plasmf = True
 
-    if eirene_fort44_file is None:
-        print("Warning! No EIRENE fort.44 file found in SOLPS output directory. "
+    if not os.path.isfile(eirene_fort44_file_path):
+        print("Warning! No EIRENE output file ({}) found.".format(eirene_fort44_file_path),
               "Assuming B2 stand-alone simulation.")
         b2_standalone = True
     else:
         # Load data for neutral species from EIRENE output file
-        eirene = load_fort44_file(eirene_fort44_file, debug=debug)
+        eirene = load_fort44_file(eirene_fort44_file_path, debug=debug)
         b2_standalone = False
 
     mesh = create_mesh_from_geom_data(geom_data_dict)
