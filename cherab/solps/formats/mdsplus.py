@@ -19,7 +19,10 @@
 
 import numpy as np
 
-from cherab.core.atomic.elements import lookup_isotope
+from cherab.core.utility import PhotonToJ
+from cherab.core.atomic.elements import lookup_isotope, hydrogen, deuterium, tritium
+from cherab.openadas import OpenADAS
+
 from cherab.solps.mesh_geometry import SOLPSMesh
 from cherab.solps.solps_plasma import SOLPSSimulation, prefer_element, eirene_flux_to_velocity, b2_flux_to_velocity
 
@@ -50,12 +53,15 @@ def load_solps_from_mdsplus(mds_server, ref_number):
 
     species_list = []
     neutral_indx = []
+    hydrogen_neutrals = {}
     for i in range(ns):
         isotope = lookup_isotope(zn[i], number=am[i])
         species = prefer_element(isotope)  # Prefer Element over Isotope if the mass number is the same
         species_list.append((species.name, charge[i]))
         if charge[i] == 0:
             neutral_indx.append(i)
+            if species in (hydrogen, deuterium, tritium):
+                hydrogen_neutrals[species] = i
 
     sim = SOLPSSimulation(mesh, species_list)
     nx = mesh.nx
@@ -157,6 +163,34 @@ def load_solps_from_mdsplus(mds_server, ref_number):
 
     if np.any(total_rad != 0):
         sim.total_radiation = total_rad / mesh.vol
+
+    ########################################
+    # Molecular and total H-alpha emission #
+    if len(hydrogen_neutrals):
+        try:
+            halpha_mol = conn.get(r'\SOLPS::TOP.SNAPSHOT.EMISSMOL').data()[:]
+        except (MdsException, TypeError):
+            halpha_mol = 0
+
+        try:
+            halpha_at = conn.get(r'\SOLPS::TOP.SNAPSHOT.EMISS').data()[:]
+        except (MdsException, TypeError):
+            halpha_at = 0
+
+        halpha_total = halpha_mol + halpha_at
+
+        if isinstance(halpha_total, np.ndarray):
+            openadas = OpenADAS()
+            total_hydrogen_density = sim.species_density[list(hydrogen_neutrals.values())].sum(0)
+            effective_energy = 0
+            for isotope, i in hydrogen_neutrals.items():
+                wavelength = openadas.wavelength(isotope, 0, (3, 2))
+                fraction = np.divide(sim.species_density[i], total_hydrogen_density,
+                                     out=np.zeros_like(total_hydrogen_density),
+                                     where=(total_hydrogen_density > 0))
+                effective_energy += PhotonToJ.to(fraction, wavelength)
+            sim.halpha_mol_radiation = halpha_mol * effective_energy  # photon s-1 m-3 --> W m-3
+            sim.halpha_total_radiation = halpha_total * effective_energy  # photon s-1 m-3 --> W m-3
 
     return sim
 

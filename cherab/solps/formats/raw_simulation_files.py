@@ -21,7 +21,9 @@ import os
 import numpy as np
 from scipy.constants import elementary_charge
 
-from cherab.core.atomic.elements import lookup_isotope
+from cherab.core.utility import PhotonToJ
+from cherab.core.atomic.elements import lookup_isotope, hydrogen, deuterium, tritium
+from cherab.openadas import OpenADAS
 
 from cherab.solps.eirene import load_fort44_file
 from cherab.solps.b2.parse_b2_block_file import load_b2f_file
@@ -86,6 +88,7 @@ def load_solps_from_raw_output(simulation_path, debug=False):
     # Load each plasma species in simulation
     species_list = []
     neutral_indx = []
+    hydrogen_neutrals = {}
     for i in range(len(sim_info_dict['zn'])):
 
         zn = int(sim_info_dict['zn'][i])  # Nuclear charge
@@ -96,6 +99,8 @@ def load_solps_from_raw_output(simulation_path, debug=False):
         species_list.append((species.name, charge))
         if charge == 0:  # updating neutral index
             neutral_indx.append(i)
+            if species in (hydrogen, deuterium, tritium):
+                hydrogen_neutrals[species] = i
 
     sim = SOLPSSimulation(mesh, species_list)
 
@@ -167,6 +172,28 @@ def load_solps_from_raw_output(simulation_path, debug=False):
             total_radiation = line_radiation + bremsstrahlung
             total_radiation[1:-1, 1:-1] -= eradt_raw_data
             sim.total_radiation = total_radiation / mesh.vol
+
+        # Obtaining molecular and total H-alpha radiation
+        if len(hydrogen_neutrals) and (eirene.emism is not None or eirene.emist is not None):
+            openadas = OpenADAS()
+            total_hydrogen_density = sim.species_density[list(hydrogen_neutrals.values())].sum(0)
+            effective_energy = 0
+            for isotope, i in hydrogen_neutrals.items():
+                wavelength = openadas.wavelength(isotope, 0, (3, 2))
+                fraction = np.divide(sim.species_density[i], total_hydrogen_density,
+                                     out=np.zeros_like(total_hydrogen_density),
+                                     where=(total_hydrogen_density > 0))
+                effective_energy += PhotonToJ.to(fraction, wavelength)
+
+            if eirene.emism is not None:
+                halpha_mol_radiation = np.zeros((ny, nx))
+                halpha_mol_radiation[1:-1, 1:-1] = eirene.emism[0]
+                sim.halpha_mol_radiation = effective_energy * halpha_mol_radiation
+
+            if eirene.emist is not None:
+                halpha_total_radiation = np.zeros((ny, nx))
+                halpha_total_radiation[1:-1, 1:-1] = eirene.emist[0]
+                sim.halpha_total_radiation = effective_energy * halpha_total_radiation
 
         sim.eirene_simulation = eirene
 
