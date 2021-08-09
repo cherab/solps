@@ -26,16 +26,16 @@ class SOLPSMesh:
     """
     SOLPSMesh geometry object.
 
-    The SOLPS mesh is rectangular. Each mesh cell is denoted by four vertices with one centre point. Vertices
+    The SOLPS mesh is quadrilateral. Each mesh cell is denoted by four vertices with one centre point. Vertices
     may be shared with neighbouring cells. The centre points should be unique.
 
     Raysect's mesh interpolator uses a different mesh scheme. Mesh cells are triangles and data values are stored at the
-    triangle vertices. Therefore, each SOLPS rectangular cell is split into two triangular cells. The data points are
+    triangle vertices. Therefore, each SOLPS quadrilateral cell is split into two triangular cells. The data points are
     later interpolated onto the vertex points.
 
     :param ndarray r: Array of cell vertex r coordinates, must be 3 dimensional. Example shape is (4 x 32 x 98).
     :param ndarray z: Array of cell vertex z coordinates, must be 3 dimensional. Example shape is (4 x 32 x 98).
-    :param ndarray vol: Array of cell volumes. Example shape is (32 x 98).
+    :param ndarray vol: Array of cell volumes in m-3. Example shape is (32 x 98).
     :param ndarray neighbix: Array of poloidal indeces of neighbouring cells in order: left, bottom, right, top,
                              must be 3 dimensional. Example shape is (4 x 32 x 98).
                              In SOLPS notation: left/right - poloidal prev./next, bottom/top - radial prev./next.
@@ -184,7 +184,7 @@ class SOLPSMesh:
 
     @property
     def vol(self):
-        """Volume/area of each grid cell."""
+        """Volume of each grid cell in m-3."""
         return self._vol
 
     @property
@@ -199,12 +199,12 @@ class SOLPSMesh:
 
     @property
     def radial_area(self):
-        """Radial contact area."""
+        """Radial contact area in m-2."""
         return self._radial_area
 
     @property
     def poloidal_area(self):
-        """Poloidal contact area."""
+        """Poloidal contact area in m-2."""
         return self._poloidal_area
 
     @property
