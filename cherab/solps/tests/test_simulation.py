@@ -52,7 +52,7 @@ class TestSOLPSSimulation(unittest.TestCase):
         # Creating a test SOLPSSimulation
         species_list = [('hydrogen', 0), ('hydrogen', 1)]
         self.sim = SOLPSSimulation(mesh, species_list)
-        rng = default_rng()
+        rng = default_rng(seed=42)
         b0 = 1.
         b_field = np.zeros((3, ny, nx))
         b_field[2] = b0 * r0 / (r0 + 0.5 * (rho[:-1] + rho[1:])[:, None] * np.cos(0.5 * (beta[:-1] + beta[1:]))[None, :])
@@ -69,7 +69,7 @@ class TestSOLPSSimulation(unittest.TestCase):
         self.sim.species_density = np.zeros((2, ny, nx))
         self.sim.species_density[0] = 0.1 * self.sim.electron_density[::-1, :]
         self.sim.species_density[1] = self.sim.electron_density
-        velocities = 1.e4 + rng.random((2, 3, ny, nx))
+        velocities = 1.e4 * rng.random((2, 3, ny, nx))
         velocities[1, 2] -= 1.e5
         self.sim.velocities = velocities
 
