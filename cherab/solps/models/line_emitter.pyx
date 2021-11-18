@@ -28,6 +28,17 @@ from cherab.solps cimport SOLPSFunction2D
 
 
 cdef class SOLPSLineEmitter(PlasmaModel):
+    """
+    Line emitter that uses a custom `SOLPSFunction2D` function for radiation power density.
+
+    :param SOLPSFunction2D radiation_function: The power density function defined on the SOLPS mesh.
+    :param Line line: Spectral line.
+    :param Plasma plasma: Plasma object. Default is None.
+    :param AtomicData atomic_data: Atomic data provider. Will use `OpenADAS` if None (default).
+    :param object lineshape: Spectral line shape model. Will use `GaussianLine` if None (default).
+    :param object lineshape_args: Positional arguments for the lineshape.
+    :param object lineshape_kwargs: Keyword arguments for the lineshape.
+    """
 
     def __init__(self, SOLPSFunction2D radiation_function, Line line, Plasma plasma=None, AtomicData atomic_data=None,
                  object lineshape=None, object lineshape_args=None, object lineshape_kwargs=None):
