@@ -21,7 +21,9 @@ import os
 import numpy as np
 from scipy.constants import elementary_charge
 
-from cherab.core.atomic.elements import lookup_isotope
+from cherab.core.utility import PhotonToJ
+from cherab.core.atomic.elements import lookup_isotope, hydrogen, deuterium, tritium
+from cherab.openadas import OpenADAS
 
 from cherab.solps.eirene import load_fort44_file
 from cherab.solps.b2.parse_b2_block_file import load_b2f_file
@@ -30,7 +32,9 @@ from cherab.solps.solps_plasma import SOLPSSimulation, prefer_element, eirene_fl
 
 
 # Code based on script by Felix Reimold (2016)
-def load_solps_from_raw_output(simulation_path, debug=False):
+def load_solps_from_raw_output(simulation_path='', debug=False, mesh_file_path=None,
+                               b2_state_file_path=None, b2_plasma_file_path=None,
+                               eirene_fort44_file_path=None):
     """
     Load a SOLPS simulation from raw SOLPS output files.
 
@@ -41,41 +45,53 @@ def load_solps_from_raw_output(simulation_path, debug=False):
     * Eirene output file (fort.44), optional
 
     :param str simulation_path: String path to simulation directory.
+                                The SOLPS output files will be searched for in this directory
+                                by their default names, unless the paths to specific files are
+                                explicitly provided by the user.
+                                Example: '/home/user/solps5/runs/simulation_name/run'.
+                                Defaults to the current working directory.
+    :param bool debug: A flag for displaying textual debugging information when parsing
+                       the SOLPS files. Defaults to False.
+    :param str mesh_file_path: String path to mesh description file (b2fgmtry).
+                               Defaults to '{simulation_path}/b2fgmtry' if None.
+    :param str b2_state_file_path: String path to B2 plasma state file (b2fstate).
+                                   Defaults to '{simulation_path}/b2fstate' if None.
+    :param str b2_plasma_file_path: String path to formatted B2 plasma solution file (b2fplasmf).
+                                    Defaults to '{simulation_path}/b2fplasmf' if None.
+    :param str eirene_fort44_file_path: String path to Eirene output file (fort.44).
+                                        Defaults to '{simulation_path}/fort.44' if None.
+
     :rtype: SOLPSSimulation
     """
 
-    if not os.path.isdir(simulation_path):
-        raise RuntimeError("simulation_path must be a valid directory.")
+    mesh_file_path = mesh_file_path or os.path.join(simulation_path, 'b2fgmtry')
+    b2_state_file_path = b2_state_file_path or os.path.join(simulation_path, 'b2fstate')
+    b2_plasma_file_path = b2_plasma_file_path or os.path.join(simulation_path, 'b2fplasmf')
+    eirene_fort44_file_path = eirene_fort44_file_path or os.path.join(simulation_path, 'fort.44')
 
-    mesh_file_path = os.path.join(simulation_path, 'b2fgmtry')
-    b2_state_file = os.path.join(simulation_path, 'b2fstate')
-    b2_plasma_file = os.path.join(simulation_path, 'b2fplasmf')
-    eirene_fort44_file = os.path.join(simulation_path, "fort.44")
-
-    # Load SOLPS mesh geometry
     if not os.path.isfile(mesh_file_path):
-        raise RuntimeError("No B2 b2fgmtry file found in SOLPS output directory.")
-    _, _, geom_data_dict = load_b2f_file(mesh_file_path, debug=debug)  # geom_data_dict is needed also for magnetic field
+        raise RuntimeError("No B2 mesh description file ({}) found.".format(mesh_file_path))
+    _, _, geom_data_dict = load_b2f_file(mesh_file_path, debug=debug)
 
-    if not os.path.isfile(b2_state_file):
-        raise RuntimeError("No B2 b2fstate file found in SOLPS output directory.")
-    header_dict, sim_info_dict, mesh_data_dict = load_b2f_file(b2_state_file, debug=debug)
+    if not os.path.isfile(b2_state_file_path):
+        raise RuntimeError("No B2 plasma state file ({}) found.".format(b2_state_file_path))
+    header_dict, sim_info_dict, mesh_data_dict = load_b2f_file(b2_state_file_path, debug=debug)
 
-    if not os.path.isfile(b2_plasma_file):
-        print("Warning! No B2 b2fplasmf file found in SOLPS output directory. "
+    if not os.path.isfile(b2_plasma_file_path):
+        print("Warning! No B2 plasma solution formatted file ({}) found.".format(b2_plasma_file_path),
               "No total_radiation data will be available.")
         have_b2plasmf = False
     else:
-        _, _, plasma_solution_dict = load_b2f_file(b2_plasma_file, debug=debug, header_dict=header_dict)
+        _, _, plasma_solution_dict = load_b2f_file(b2_plasma_file_path, debug=debug, header_dict=header_dict)
         have_b2plasmf = True
 
-    if not os.path.isfile(eirene_fort44_file):
-        print("Warning! No EIRENE fort.44 file found in SOLPS output directory. "
+    if not os.path.isfile(eirene_fort44_file_path):
+        print("Warning! No EIRENE output file ({}) found.".format(eirene_fort44_file_path),
               "Assuming B2 stand-alone simulation.")
         b2_standalone = True
     else:
         # Load data for neutral species from EIRENE output file
-        eirene = load_fort44_file(eirene_fort44_file, debug=debug)
+        eirene = load_fort44_file(eirene_fort44_file_path, debug=debug)
         b2_standalone = False
 
     mesh = create_mesh_from_geom_data(geom_data_dict)
@@ -86,6 +102,7 @@ def load_solps_from_raw_output(simulation_path, debug=False):
     # Load each plasma species in simulation
     species_list = []
     neutral_indx = []
+    hydrogen_neutrals = {}
     for i in range(len(sim_info_dict['zn'])):
 
         zn = int(sim_info_dict['zn'][i])  # Nuclear charge
@@ -96,6 +113,8 @@ def load_solps_from_raw_output(simulation_path, debug=False):
         species_list.append((species.name, charge))
         if charge == 0:  # updating neutral index
             neutral_indx.append(i)
+            if species in (hydrogen, deuterium, tritium):
+                hydrogen_neutrals[species] = i
 
     sim = SOLPSSimulation(mesh, species_list)
 
@@ -168,9 +187,32 @@ def load_solps_from_raw_output(simulation_path, debug=False):
             total_radiation[1:-1, 1:-1] -= eradt_raw_data
             sim.total_radiation = total_radiation / mesh.vol
 
+        # Obtaining molecular and total H-alpha radiation
+        if len(hydrogen_neutrals) and (eirene.emism is not None or eirene.emist is not None):
+            openadas = OpenADAS()
+            total_hydrogen_density = sim.species_density[list(hydrogen_neutrals.values())].sum(0)
+            effective_energy = 0
+            for isotope, i in hydrogen_neutrals.items():
+                wavelength = openadas.wavelength(isotope, 0, (3, 2))
+                fraction = np.divide(sim.species_density[i], total_hydrogen_density,
+                                     out=np.zeros_like(total_hydrogen_density),
+                                     where=(total_hydrogen_density > 0))
+                effective_energy += PhotonToJ.to(fraction, wavelength)
+
+            if eirene.emism is not None:
+                halpha_mol_radiation = np.zeros((ny, nx))
+                halpha_mol_radiation[1:-1, 1:-1] = eirene.emism[0]
+                sim.halpha_mol_radiation = effective_energy * halpha_mol_radiation
+
+            if eirene.emist is not None:
+                halpha_total_radiation = np.zeros((ny, nx))
+                halpha_total_radiation[1:-1, 1:-1] = eirene.emist[0]
+                sim.halpha_total_radiation = effective_energy * halpha_total_radiation
+
         sim.eirene_simulation = eirene
 
     return sim
+
 
 def create_mesh_from_geom_data(geom_data):
 
