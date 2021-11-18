@@ -321,7 +321,7 @@ class SOLPSSimulation:
 
         # Converting to poloidal coordinates
         velocities = np.zeros(value.shape)
-        velocities[:, 2] = -value[:, 1]
+        velocities[2] = -value[1]
         velocities[:2] = self.mesh.to_poloidal(value[[0, 2]])
 
         self._electron_velocities_cylindrical = value
