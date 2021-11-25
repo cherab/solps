@@ -34,7 +34,7 @@ from cherab.solps.solps_plasma import SOLPSSimulation, prefer_element, eirene_fl
 # Code based on script by Felix Reimold (2016)
 def load_solps_from_raw_output(simulation_path='', debug=False, mesh_file_path=None,
                                b2_state_file_path=None, b2_plasma_file_path=None,
-                               eirene_fort44_file_path=None):
+                               eirene_fort44_file_path=None, atomic_data=None):
     """
     Load a SOLPS simulation from raw SOLPS output files.
 
@@ -60,6 +60,9 @@ def load_solps_from_raw_output(simulation_path='', debug=False, mesh_file_path=N
                                     Defaults to '{simulation_path}/b2fplasmf' if None.
     :param str eirene_fort44_file_path: String path to Eirene output file (fort.44).
                                         Defaults to '{simulation_path}/fort.44' if None.
+    :param AtomicData atomic_data: The atomic data provider. Used here to convert
+                                   the radiation density from photons/s/m3 to W/m3.
+                                   Defaults to `OpenADAS()` if None.
 
     :rtype: SOLPSSimulation
     """
@@ -189,11 +192,11 @@ def load_solps_from_raw_output(simulation_path='', debug=False, mesh_file_path=N
 
         # Obtaining molecular and total H-alpha radiation
         if len(hydrogen_neutrals) and (eirene.emism is not None or eirene.emist is not None):
-            openadas = OpenADAS()
+            atomic_data = atomic_data or OpenADAS()
             total_hydrogen_density = sim.species_density[list(hydrogen_neutrals.values())].sum(0)
             effective_energy = 0
             for isotope, i in hydrogen_neutrals.items():
-                wavelength = openadas.wavelength(isotope, 0, (3, 2))
+                wavelength = atomic_data.wavelength(isotope, 0, (3, 2))
                 fraction = np.divide(sim.species_density[i], total_hydrogen_density,
                                      out=np.zeros_like(total_hydrogen_density),
                                      where=(total_hydrogen_density > 0))
