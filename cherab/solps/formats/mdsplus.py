@@ -27,12 +27,15 @@ from cherab.solps.mesh_geometry import SOLPSMesh
 from cherab.solps.solps_plasma import SOLPSSimulation, prefer_element, eirene_flux_to_velocity, b2_flux_to_velocity
 
 
-def load_solps_from_mdsplus(mds_server, ref_number):
+def load_solps_from_mdsplus(mds_server, ref_number, atomic_data=None):
     """
     Load a SOLPS simulation from a MDSplus server.
 
     :param str mds_server: Server address.
     :param int ref_number: Simulation reference number.
+    :param AtomicData atomic_data: The atomic data provider. Used here to convert
+                                   the radiation density from photons/s/m3 to W/m3.
+                                   Defaults to `OpenADAS()` if None.
     :rtype: SOLPSSimulation
     """
 
@@ -180,11 +183,11 @@ def load_solps_from_mdsplus(mds_server, ref_number):
         halpha_total = halpha_mol + halpha_at
 
         if isinstance(halpha_total, np.ndarray):
-            openadas = OpenADAS()
+            atomic_data = atomic_data or OpenADAS()
             total_hydrogen_density = sim.species_density[list(hydrogen_neutrals.values())].sum(0)
             effective_energy = 0
             for isotope, i in hydrogen_neutrals.items():
-                wavelength = openadas.wavelength(isotope, 0, (3, 2))
+                wavelength = atomic_data.wavelength(isotope, 0, (3, 2))
                 fraction = np.divide(sim.species_density[i], total_hydrogen_density,
                                      out=np.zeros_like(total_hydrogen_density),
                                      where=(total_hydrogen_density > 0))
