@@ -100,7 +100,7 @@ cdef class SOLPSLineEmitter(PlasmaModel):
                                "(element={}, ionisation={}).".format(self._line.element.symbol, self._line.charge))
 
         # identify wavelength
-        self._wavelength = self._plasma.atomic_data.wavelength(self._line.element, self._line.charge, self._line.transition)
+        self._wavelength = self._atomic_data.wavelength(self._line.element, self._line.charge, self._line.transition)
 
         # instance line shape renderer
         self._lineshape = self._lineshape_class(self._line, self._wavelength, self._target_species, self._plasma,
