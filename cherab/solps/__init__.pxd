@@ -17,5 +17,5 @@
 # See the Licence for the specific language governing permissions and limitations
 # under the Licence.
 
-from .line_emitter import SOLPSLineEmitter
-from .solps_emitter import make_solps_emitter
+from cherab.solps.solps_2d_functions cimport SOLPSFunction2D, SOLPSVectorFunction2D
+

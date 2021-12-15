@@ -1,4 +1,3 @@
-
 # Copyright 2016-2021 Euratom
 # Copyright 2016-2021 United Kingdom Atomic Energy Authority
 # Copyright 2016-2021 Centro de Investigaciones Energéticas, Medioambientales y Tecnológicas
@@ -17,5 +16,22 @@
 # See the Licence for the specific language governing permissions and limitations
 # under the Licence.
 
-from .line_emitter import SOLPSLineEmitter
-from .solps_emitter import make_solps_emitter
+from raysect.core.math.function.float cimport Function3D
+from cherab.core.atomic cimport Line
+from cherab.core.plasma cimport PlasmaModel
+from cherab.core.species cimport Species
+from cherab.core.model.lineshape cimport LineShapeModel
+
+
+cdef class SOLPSLineEmitter(PlasmaModel):
+
+    cdef:
+        Line _line
+        double _wavelength
+        Species _target_species
+        LineShapeModel _lineshape
+        Function3D _power_density
+        
+        object _lineshape_class, _lineshape_args, _lineshape_kwargs
+
+    cdef int _populate_cache(self) except -1

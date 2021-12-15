@@ -17,5 +17,4 @@
 # See the Licence for the specific language governing permissions and limitations
 # under the Licence.
 
-from .line_emitter import SOLPSLineEmitter
-from .solps_emitter import make_solps_emitter
+from cherab.solps.models.line_emitter cimport SOLPSLineEmitter

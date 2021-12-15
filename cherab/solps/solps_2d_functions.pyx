@@ -31,12 +31,6 @@ cimport cython
 
 cdef class SOLPSFunction2D(Function2D):
 
-    cdef:
-        MeshKDTree2D _kdtree
-        np.ndarray _grid_data, _triangle_to_grid_map
-        np.int32_t[:,::1] _triangle_to_grid_map_mv
-        double[:,::1] _grid_data_mv
-
     def __init__(self, object vertex_coords not None, object triangles not None, object triangle_to_grid_map not None, object grid_data not None):
 
         # use numpy arrays to store data internally
@@ -121,12 +115,6 @@ cdef class SOLPSFunction2D(Function2D):
         return 0.0
 
 cdef class SOLPSVectorFunction2D(VectorFunction2D):
-
-    cdef:
-        MeshKDTree2D _kdtree
-        np.ndarray _grid_vectors, _triangle_to_grid_map
-        np.int32_t[:,::1] _triangle_to_grid_map_mv
-        double[:,:,::1] _grid_vectors_mv
 
     def __init__(self, object vertex_coords not None, object triangles not None, object triangle_to_grid_map not None, object grid_vectors not None):
 
