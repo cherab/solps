@@ -1,1 +1,2 @@
-cherab
+cherab==1.3.0
+raysect==0.7.1
