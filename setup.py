@@ -39,7 +39,7 @@ with open("README.md") as f:
 
 setup(
     name="cherab-solps",
-    version="1.2.0rc2",
+    version="1.2.0",
     license="EUPL 1.1",
     namespace_packages=['cherab'],
     description="Cherab spectroscopy framework: SOLPS submodule",
