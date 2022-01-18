@@ -22,16 +22,25 @@ After the virtual environment is created, it can be activated by running:
 source ~/venvs/cherab-venv/bin/activate
 ```
 
+Once activated, cherab-solps and its dependencies can be installed with:
+
+```bash
+pip install cherab-solps
+```
+
+## Building from source
+
 ### Users
 
 This module depends on the core Cherab framework.
 Cherab core, and all of its dependencies, are available on PyPI and can be installed using `pip`.
-However, the SOLPS module will need to be installed from this repository.
 
 Note also that a [bug](https://github.com/cython/cython/issues/2918) in Cython prevents Cherab submodules from installing correctly.
 This bug is fixed, but not yet released in the stable version of Cython.
-As a result, you will need to install the latest alpha version of Cython before installing this package.
+As a result, you will need to install a pre-release version of Cython before installing this package.
+Recent versions of `pip` which support [PEP 518](https://www.python.org/dev/peps/pep-0518/) will handle this automatically when you run `pip install cherab-solps` and a binary wheel is not available for your platform or Python version.
 
+For older versions of `pip` you may need to manually install the build-time dependencies.
 First, clone this repository, then do:
 
 ```bash

@@ -1,0 +1,5 @@
+include README.md CHANGELOG.md LICENSE.txt MANIFEST.in setup.py requirements.txt
+recursive-include cherab *.py *.pyx *.pxd
+prune demos*
+
+

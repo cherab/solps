@@ -4,9 +4,7 @@ import sys
 import numpy
 import os
 import os.path as path
-import multiprocessing
 
-threads = multiprocessing.cpu_count()
 force = False
 profile = False
 
@@ -31,18 +29,40 @@ for root, dirs, files in os.walk(setup_path):
             module = path.splitext(pyx_file)[0].replace("/", ".")
             extensions.append(Extension(module, [pyx_file], include_dirs=compilation_includes),)
 
+cython_directives = {"language_level": 3}
 if profile:
-    directives = {"profile": True}
-else:
-    directives = {}
+    cython_directives["profile"] = True
 
+
+with open("README.md") as f:
+    long_description = f.read()
 
 setup(
     name="cherab-solps",
-    version="1.1.0",
+    version="1.2.0",
     license="EUPL 1.1",
     namespace_packages=['cherab'],
+    description="Cherab spectroscopy framework: SOLPS submodule",
+    classifiers=[
+        "Development Status :: 5 - Production/Stable",
+        "Intended Audience :: Science/Research",
+        "Intended Audience :: Education",
+        "Intended Audience :: Developers",
+        "Natural Language :: English",
+        "Operating System :: POSIX :: Linux",
+        "Programming Language :: Cython",
+        "Programming Language :: Python :: 3",
+        "Topic :: Scientific/Engineering :: Physics",
+    ],
+    url="https://github.com/cherab",
+    project_urls=dict(
+        Tracker="https://github.com/cherab/solps/issues",
+        Documentation="https://cherab.github.io/documentation/",
+    ),
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     packages=find_packages(),
     include_package_data=True,
-    ext_modules=cythonize(extensions, nthreads=threads, force=force, compiler_directives=directives)
+    install_requires=["raysect==0.7.1", "cherab==1.3"],
+    ext_modules=cythonize(extensions, force=force, compiler_directives=cython_directives),
 )

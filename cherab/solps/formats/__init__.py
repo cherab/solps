@@ -1,7 +1,7 @@
 
-# Copyright 2016-2018 Euratom
-# Copyright 2016-2018 United Kingdom Atomic Energy Authority
-# Copyright 2016-2018 Centro de Investigaciones Energéticas, Medioambientales y Tecnológicas
+# Copyright 2016-2021 Euratom
+# Copyright 2016-2021 United Kingdom Atomic Energy Authority
+# Copyright 2016-2021 Centro de Investigaciones Energéticas, Medioambientales y Tecnológicas
 #
 # Licensed under the EUPL, Version 1.1 or – as soon they will be approved by the
 # European Commission - subsequent versions of the EUPL (the "Licence");
@@ -19,5 +19,4 @@
 
 from .mdsplus import load_solps_from_mdsplus
 from .raw_simulation_files import load_solps_from_raw_output
-from .raw_pickle import load_solps_from_pickle
 from .balance import load_solps_from_balance

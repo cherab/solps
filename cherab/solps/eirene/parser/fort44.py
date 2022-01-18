@@ -16,8 +16,9 @@
 # See the Licence for the specific language governing permissions and limitations
 # under the Licence.
 
-from cherab.solps.eirene.parser.fort44_2017 import load_fort44_2017
+from cherab.solps.eirene.parser.fort44_post_2016 import load_fort44_post_2016
 from cherab.solps.eirene.parser.fort44_2013 import load_fort44_2013
+from cherab.solps.eirene.parser.fort44_pre_2007 import load_fort44_pre_2007
 
 
 def load_fort44_file(file_path, debug=False):
@@ -48,7 +49,7 @@ def load_fort44_file(file_path, debug=False):
 
         # Look up file parsing function and call it to obtain for44 block and update data dictionary
     parser = assign_fort44_parser(data["version"])
-    return parser(file_path)
+    return parser(file_path, debug)
 
 
 def assign_fort44_parser(file_version):
@@ -58,12 +59,14 @@ def assign_fort44_parser(file_version):
     :return: Parsing function object
     """
 
-    fort44_parser_library = {
-        20170328: load_fort44_2017,
-        20130210: load_fort44_2013
-    }
-
-    if file_version in fort44_parser_library.keys():
-        return fort44_parser_library[file_version]
-    else:
-        raise ValueError("Can't read version {} fort.44 file".format(file_version))
+    # TODO write universal fort44 parser
+    file_version = int(file_version)
+    # Parser load_fort44_pre_2007 is used also for 20071209, 20080706 and 20081111
+    # versions as a temporary solution. Parameter 'eneutrad' is not parsed from these file versions.
+    if file_version <= 20081111:
+        return load_fort44_pre_2007
+    if file_version == 20130210:
+        return load_fort44_2013
+    if file_version >= 20160829:
+        return load_fort44_post_2016
+    raise ValueError("Can't read version {} fort.44 file".format(file_version))
