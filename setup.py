@@ -39,7 +39,7 @@ with open("README.md") as f:
 
 setup(
     name="cherab-solps",
-    version="1.2.0",
+    version="1.2.1",
     license="EUPL 1.1",
     namespace_packages=['cherab'],
     description="Cherab spectroscopy framework: SOLPS submodule",
@@ -63,6 +63,6 @@ setup(
     long_description_content_type="text/markdown",
     packages=find_packages(),
     include_package_data=True,
-    install_requires=["raysect==0.7.1", "cherab==1.3"],
+    install_requires=["raysect==0.7.1", "cherab==1.4"],
     ext_modules=cythonize(extensions, force=force, compiler_directives=cython_directives),
 )
