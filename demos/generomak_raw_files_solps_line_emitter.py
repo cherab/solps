@@ -28,15 +28,16 @@ import numpy as np
 from matplotlib.colors import SymLogNorm
 import matplotlib.pyplot as plt
 
-from raysect.core.math import Point3D, Vector3D, rotate_z
+from raysect.core.math import Point3D, Vector3D, rotate_z, translate, rotate_basis
 from raysect.optical import World, Spectrum
-from raysect.optical.observer import SpectralRadiancePipeline0D
+from raysect.optical.observer import SpectralRadiancePipeline0D, FibreOptic
 
 from cherab.core.model import ExcitationLine, RecombinationLine
 from cherab.core.atomic import Line, hydrogen
 from cherab.openadas import OpenADAS
 from cherab.generomak.machine import load_first_wall
-from cherab.tools.observers import FibreOpticGroup, SpectroscopicFibreOptic
+from cherab.tools.observers import FibreOpticGroup
+from cherab.tools.observers.group.plotting import plot_group_spectra, plot_group_total
 from cherab.solps import load_solps_from_raw_output
 from cherab.solps.models.line_emitter import SOLPSLineEmitter
 
@@ -51,9 +52,9 @@ def plot_emission_and_sightlines(solps_simulation, fibre_optic_group, sightline_
     ax.set_title("H-alpha power density [W m-3]")
 
     # plot lines of sight
-    for sight_line in fibre_optic_group.sight_lines:
-        origin = sight_line.origin
-        direction = sight_line.direction
+    for sight_line in fibre_optic_group.observers:
+        origin = fibre_optic_group.transform * sight_line.transform * Point3D(0, 0, 0)
+        direction = fibre_optic_group.transform * sight_line.transform * Vector3D(0, 0, 1)
         radius = sight_line.radius
         angle = np.deg2rad(sight_line.acceptance_angle)
         end = origin + sightline_length * direction
@@ -118,21 +119,22 @@ load_first_wall(world)
 
 # A group of optical fibres observing the divertor.
 group = FibreOpticGroup(parent=world, name='Divertor LoS array')
-group.transform = rotate_z(22.5)
-origin = Point3D(2.3, 0, 1.25)
+group.transform = rotate_z(22.5) * translate(2.3, 0, 1.25)
 angles = [-63.8, -66.5, -69.2, -71.9, -74.6]
 direction_r = -np.cos(np.deg2rad(angles))
 direction_z = np.sin(np.deg2rad(angles))
 for i in range(len(angles)):
-    group.add_sight_line(SpectroscopicFibreOptic(origin, Vector3D(direction_r[i], 0, direction_z[i]), name='{}'.format(i + 1)))
+    forward = Vector3D(direction_r[i], 0, direction_z[i])
+    up = Vector3D(0, 1., 0)
+    fibre = FibreOptic(transform=rotate_basis(forward, up), name='{}'.format(i + 1))
+    group.add_observer(fibre)
 group.acceptance_angle = 1.4
 group.radius = 0.001
 group.pixel_samples = 5000
-group.connect_pipelines(((SpectralRadiancePipeline0D, 'SpectralPipeline', None),))
+group.connect_pipelines((SpectralRadiancePipeline0D, ), ({'name': 'SpectralPipeline'}, ), suppress_display_progress=True)
 group.min_wavelength = 655.5
 group.max_wavelength = 656.9
 group.spectral_bins = 256
-group.display_progress = False
 
 plt.ion()
 # Plotting the projection of sight lines on the poloidal plane.
@@ -141,7 +143,7 @@ plot_emission_and_sightlines(sim, group)
 print('Observing plasma...')
 group.observe()
 
-group.plot_spectra('SpectralPipeline', in_photons=True)
-group.plot_total_signal('SpectralPipeline')
+plot_group_spectra(group, 'SpectralPipeline', in_photons=True)
+plot_group_total(group, 'SpectralPipeline')
 plt.ioff()
 plt.show()
