@@ -1,6 +1,12 @@
 Project Changelog
 =================
 
+Release 1.2.1 (17 Feb 2023)
+-------------------
+
+* Added support for Cherab 1.4.
+* Update `generomak_raw_files_solps_line_emitter.py` demo to use the new group observer from Cherab 1.4.
+
 Release 1.2.0 (31 Dec 2021)
 ----------------------------
 

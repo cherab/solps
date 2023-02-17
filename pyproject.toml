@@ -1,3 +1,3 @@
 [build-system]
-requires = ["setuptools", "wheel", "numpy>=1.14", "cython==3.0a5", "raysect==0.7.1", "cherab==1.3"]
+requires = ["setuptools", "wheel", "oldest-supported-numpy", "cython==3.0a5", "raysect==0.7.1", "cherab==1.4"]
 build-backend="setuptools.build_meta"
