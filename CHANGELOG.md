@@ -1,7 +1,7 @@
 Project Changelog
 =================
 
-Release 1.2.1 (TBD)
+Release 1.2.1 (17 Feb 2023)
 -------------------
 
 * Added support for Cherab 1.4.
