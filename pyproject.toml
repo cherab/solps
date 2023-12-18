@@ -1,3 +1,27 @@
 [build-system]
-requires = ["setuptools", "wheel", "oldest-supported-numpy", "cython==3.0a5", "raysect==0.7.1", "cherab==1.4"]
-build-backend="setuptools.build_meta"
+requires = ["meson-python", "oldest-supported-numpy", "cython~=3.0", "raysect==0.8.1.*", "cherab==1.5.0.*"]
+build-backend="mesonpy"
+
+[project]
+name = "cherab-solps"
+version = "1.3.0.dev1"
+license = {text = "EUPL 1.1"}
+description = "Cherab spectroscopy framework: SOLPS submodule"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Cython",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+readme = "README.md"
+dependencies = ["raysect == 0.8.1.*", "cherab==1.5.0.*"]
+
+[project.urls]
+Homepage = "https://github.com/cherab"
+Tracker = "https://github.com/cherab/solps/issues"
+Documentation = "https://www.cherab.info"

@@ -35,16 +35,16 @@ pip install cherab-solps
 This module depends on the core Cherab framework.
 Cherab core, and all of its dependencies, are available on PyPI and can be installed using `pip`.
 
-Note also that a [bug](https://github.com/cython/cython/issues/2918) in Cython prevents Cherab submodules from installing correctly.
-This bug is fixed, but not yet released in the stable version of Cython.
-As a result, you will need to install a pre-release version of Cython before installing this package.
+Note also that a [bug](https://github.com/cython/cython/issues/2918) in Cython 0.x prevents Cherab submodules from installing correctly.
+This bug is fixed in Cython 3.0.
+If you have an older version of Cython installed you will need to install a newer version >3.0 before installing this package.
 Recent versions of `pip` which support [PEP 518](https://www.python.org/dev/peps/pep-0518/) will handle this automatically when you run `pip install cherab-solps` and a binary wheel is not available for your platform or Python version.
 
 For older versions of `pip` you may need to manually install the build-time dependencies.
 First, clone this repository, then do:
 
 ```bash
-pip install -U cython==3.0a5
+pip install cython>=3.0 mesonpy ninja
 pip install cherab
 pip install <path-to-cherab-solps>
 ```
@@ -62,6 +62,14 @@ To install the package in develop mode, so that local changes are immediately vi
 pip install -e <path-to-cherab-solps>
 ```
 
-If you are modifying Cython files you will need to run `./dev/build.sh` from this directory in order to rebuild the extension modules.
-They will then be used when Python is restarted.
+Any changes to existing Cython files will be automatically rebuilt the next time the module is imported.
+If you are adding new Cython or Python files they will need to be added to the `meson.build` file in the same directory in order to be included.
 
+For development it is recommending to request debug builds instead of the default release builds.
+Verbose build information may also be useful.
+This can be done with:
+
+```
+pip install --config-setting=setup-args='-Dbuildtype=debug' --config=editable-verbose -e <path-to-cherab-solps>
+```
+This will turn on linetracing in Cython files, enabling coverage reporting and line-by-line profiling.

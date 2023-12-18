@@ -24,7 +24,7 @@ from cherab.core.model.lineshape cimport GaussianLine, LineShapeModel
 from cherab.core.utility.constants cimport RECIP_4_PI
 from cherab.core.math.mappers import AxisymmetricMapper
 
-from cherab.solps cimport SOLPSFunction2D
+from cherab.solps.solps_2d_functions cimport SOLPSFunction2D
 
 
 cdef class SOLPSLineEmitter(PlasmaModel):
