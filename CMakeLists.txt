@@ -41,9 +41,6 @@ endforeach()
 # succession would be treated as the same build (the cache value doesn't change) and
 # would not lead to calling cython at all. For other options such as --profile,
 # again they will only be turned on or off if the command line arguments are changed.
-#
-# TODO: decide whether CMake defines or environment variables are the better approach
-# for dynamic configuration.
 
 option(profile "Enable profiling in Cython modules." OFF)
 if(profile)
@@ -55,13 +52,6 @@ if(line-profile)
   list(APPEND CYTHON_ARGS -Xlinetrace=True)
   add_compile_definitions(CYTHON_TRACE=1)
   add_compile_definitions(CYTHON_TRACE_NOGIL=1)
-endif()
-
-# An example of using an environment variable instead of a CMake option.
-# Leave this undocumented for now: do we really want to include support for
-# annotations? Probably fine to just use `cython --annotate` on individual files.
-if(DEFINED ENV{CYTHON_ANNOTATE})
-  list(APPEND CYTHON_ARGS --annotate)
 endif()
 
 # Cython extensions are all stored in cherab/solps and subdirectories.  Note: all
