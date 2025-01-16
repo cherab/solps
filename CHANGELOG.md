@@ -1,6 +1,13 @@
 Project Changelog
 =================
 
+Release 1.3.0 (TBD)
+-------------------
+
+* Support Cherab 1.5 (#74).
+* Package demo files in distribution (#77)
+* Switch build from setuptools to scikit-build-core (#79).
+
 Release 1.2.1 (17 Feb 2023)
 -------------------
 
