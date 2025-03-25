@@ -14,7 +14,7 @@ build-backend="scikit_build_core.build"
 
 [project]
 name = "cherab-solps"
-version = "1.3.0.dev2"
+version = "1.3.0rc1"
 dependencies = [
     "raysect == 0.8.1.*",
     "cherab == 1.5.*",
@@ -44,7 +44,7 @@ repository = "https://github.com/cherab/solps"
 issues = "https://github.com/cherab/solps/issues"
 
 [tool.scikit-build]
-cmake.version = ">=3.21"
+cmake.version = ">=3.24"
 minimum-version = "0.10"
 sdist.exclude = [
     ".github",
