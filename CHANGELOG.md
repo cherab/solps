@@ -1,7 +1,7 @@
 Project Changelog
 =================
 
-Release 1.3.0 (TBD)
+Release 1.3.0 (9 Sep 2025)
 -------------------
 
 * Support Cherab 1.5 (#74).
