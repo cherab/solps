@@ -16,10 +16,9 @@
 #
 # See the Licence for the specific language governing permissions and limitations
 # under the Licence.
+from warnings import warn
 
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.collections import PolyCollection
 
 
 class SOLPSMesh:
@@ -337,22 +336,9 @@ class SOLPSMesh:
 
         :param solps_data: Data array defined on the SOLPS mesh
         """
-        if ax is None:
-            _, ax = plt.subplots(constrained_layout=True)
-
-        verts = self.vertex_coordinates[self.triangles]
-        if solps_data is None:
-            collection_mesh = PolyCollection(verts, facecolor="none", edgecolor='b', linewidth=0.5)
-        else:
-            collection_mesh = PolyCollection(verts)
-            collection_mesh.set_array(solps_data[self.triangle_to_grid_map[:, 0], self.triangle_to_grid_map[:, 1]])
-        ax.add_collection(collection_mesh)
-        ax.set_aspect(1)
-        ax.set_xlim(self.mesh_extent["minr"], self.mesh_extent["maxr"])
-        ax.set_ylim(self.mesh_extent["minz"], self.mesh_extent["maxz"])
-        ax.set_xlabel("R [m]")
-        ax.set_ylabel("Z [m]")
-
+        warn("plot_triangle_mesh method is deprecated, use functions from plot module.", DeprecationWarning)
+        from .plot import plot_triangle_mesh
+        ax = plot_triangle_mesh(self, solps_data, ax)
         return ax
 
     def plot_quadrangle_mesh(self, solps_data=None, ax=None):
@@ -361,21 +347,7 @@ class SOLPSMesh:
 
         :param solps_data: Data array defined on the SOLPS mesh
         """
-
-        if ax is None:
-            _, ax = plt.subplots(constrained_layout=True)
-
-        verts = self.vertex_coordinates[self.quadrangles]
-        if solps_data is None:
-            collection_mesh = PolyCollection(verts, facecolor="none", edgecolor='b', linewidth=0.5)
-        else:
-            collection_mesh = PolyCollection(verts)
-            collection_mesh.set_array(solps_data[self.quadrangle_to_grid_map[:, 0], self.quadrangle_to_grid_map[:, 1]])
-        ax.add_collection(collection_mesh)
-        ax.set_aspect(1)
-        ax.set_xlim(self.mesh_extent["minr"], self.mesh_extent["maxr"])
-        ax.set_ylim(self.mesh_extent["minz"], self.mesh_extent["maxz"])
-        ax.set_xlabel("R [m]")
-        ax.set_ylabel("Z [m]")
-
+        warn("plot_quadrangle_mesh method is deprecated, use functions from plot module.", DeprecationWarning)
+        from .plot import plot_quadrangle_mesh
+        ax = plot_quadrangle_mesh(self, solps_data, ax)
         return ax

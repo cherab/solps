@@ -103,7 +103,7 @@ cdef class SOLPSLineEmitter(PlasmaModel):
         self._wavelength = self._atomic_data.wavelength(self._line.element, self._line.charge, self._line.transition)
 
         # instance line shape renderer
-        self._lineshape = self._lineshape_class(self._line, self._wavelength, self._target_species, self._plasma,
+        self._lineshape = self._lineshape_class(self._line, self._wavelength, self._target_species, self._plasma, self._atomic_data,
                                                 *self._lineshape_args, **self._lineshape_kwargs)
 
     def _change(self):

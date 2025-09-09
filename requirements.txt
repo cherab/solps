@@ -1,3 +1,5 @@
-cherab==1.4.0
-raysect==0.7.1
-cython==3.0a5
+scikit-build-core
+oldest-supported-numpy
+cherab==1.5.*
+raysect==0.8.1.*
+cython~=3.0

@@ -1,3 +1,64 @@
 [build-system]
-requires = ["setuptools", "wheel", "oldest-supported-numpy", "cython==3.0a5", "raysect==0.7.1", "cherab==1.4"]
-build-backend="setuptools.build_meta"
+requires = [
+    "scikit-build-core",
+    # "cython-cmake",  # Vendored to support Python 3.7 builds.
+    # Oldest supported numpy for Python <3.9 missing pxd files which
+    # are provided by Cython < 3.1 (see Cython GH #5842).
+    "cython~=3.0.0; python_version < '3.9'",
+    "cython~=3.0; python_version >= '3.9'",
+    # "oldest-supported-numpy; python_version < '3.9'",
+    # "numpy~=2.0; python_version >= '3.9'",
+    # Cherab currently requires numpy < 2, so this package does too.
+    "oldest-supported-numpy",
+    "raysect==0.8.1.*",
+    "cherab==1.5.*",
+]
+build-backend="scikit_build_core.build"
+
+[project]
+name = "cherab-solps"
+version = "1.3.0"
+dependencies = [
+    "raysect == 0.8.1.*",
+    "cherab == 1.5.*",
+    "matplotlib",
+    "scipy",
+]
+description = "Cherab spectroscopy framework: SOLPS submodule"
+readme = "README.md"
+license = {file = "LICENCE.txt"}
+requires-python = ">= 3.7"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Cython",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+[project.urls]
+homepage = "https://github.com/cherab"
+documentation = "https://www.cherab.info"
+repository = "https://github.com/cherab/solps"
+issues = "https://github.com/cherab/solps/issues"
+
+[tool.scikit-build]
+cmake.version = ">=3.24"
+minimum-version = "0.10"
+sdist.exclude = [
+    ".github",
+    ".gitignore",
+    "dev",
+    "wheelhouse",
+]
+wheel.exclude = [
+    "**.pyx",
+    "CMakeLists.txt",
+]
+wheel.packages = ["cherab"]
+build-dir = "build/{state}"
+build.verbose = true  # For development, show the build commands.

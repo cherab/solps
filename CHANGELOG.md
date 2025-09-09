@@ -1,6 +1,14 @@
 Project Changelog
 =================
 
+Release 1.3.0 (9 Sep 2025)
+-------------------
+
+* Support Cherab 1.5 (#74).
+* Package demo files in distribution (#77)
+* Switch build from setuptools to scikit-build-core (#79).
+* Added a submodule for plotting, deprecating `SOLPSMesh` methods (#80)
+
 Release 1.2.1 (17 Feb 2023)
 -------------------
 
