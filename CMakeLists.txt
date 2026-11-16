@@ -13,7 +13,7 @@ find_package(
 # Ironically the vendoring scripts are the only part of the project which
 # would potentially cause Python incompatibilities...
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
-find_package(Cython MODULE REQUIRED VERSION 3.0)
+find_package(Cython MODULE REQUIRED VERSION 3.1)
 include(UseCython)
 
 # Out-of-tree build means Cython needs to be told to look in

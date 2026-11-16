@@ -1,6 +1,13 @@
 Project Changelog
 =================
 
+Release 1.4.0 (16 Nov 2026)
+--------------------------
+
+* Support Cherab 1.6, Raysect 0.9.1, and NumPy 2.
+* Require Python 3.9 or newer and Cython 3.1 for builds.
+* Preserve array-like simulation inputs and shared float64 data under NumPy 2.
+
 Release 1.3.0 (9 Sep 2025)
 -------------------
 
