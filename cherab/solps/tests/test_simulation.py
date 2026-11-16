@@ -47,6 +47,36 @@ class TestSOLPSSimulation(unittest.TestCase):
 
     sim = create_test_simulation()
 
+    def test_array_like_inputs(self):
+        """NumPy 2 must allow lists and arrays requiring dtype conversion."""
+        sim = create_test_simulation()
+        fields = (
+            'electron_temperature', 'ion_temperature', 'neutral_temperature',
+            'electron_density', 'electron_velocities', 'electron_velocities_cylindrical',
+            'species_density', 'velocities', 'velocities_cylindrical',
+            'b_field', 'b_field_cylindrical', 'total_radiation',
+            'halpha_mol_radiation', 'halpha_total_radiation',
+        )
+        for field in fields:
+            original = getattr(sim, field)
+            shape = original.shape if original is not None else (sim.mesh.ny, sim.mesh.nx)
+            values = np.ones(shape, dtype=np.int32)
+            for value in (values, values.tolist()):
+                with self.subTest(field=field, input_type=type(value).__name__):
+                    setattr(sim, field, value)
+                    result = getattr(sim, field)
+                    self.assertEqual(result.dtype, np.float64)
+                    np.testing.assert_array_equal(result, values)
+
+    def test_interpolator_shares_data(self):
+        """Editing a supplied float64 array must update its interpolator."""
+        sim = create_test_simulation()
+        values = np.ones((sim.mesh.ny, sim.mesh.nx), dtype=np.float64)
+        sim.electron_density = values
+        self.assertIs(sim.electron_density, values)
+        values[0, 0] = 42.
+        self.assertEqual(sim.electron_density_f2d(sim.mesh.cr[0, 0], sim.mesh.cz[0, 0]), 42.)
+
     def test_vector_transform(self):
         """ Tests vector transforms (poloidal <--> cylindrical)"""
 

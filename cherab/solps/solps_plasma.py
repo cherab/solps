@@ -160,7 +160,7 @@ class SOLPSSimulation:
 
     @electron_temperature.setter
     def electron_temperature(self, value):
-        value = np.array(value, dtype=np.float64, copy=False)
+        value = np.asarray(value, dtype=np.float64)
         _check_shape("electron_temperature", value, (self.mesh.ny, self.mesh.nx))
         self._electron_temperature = value
         self._electron_temperature_f2d = SOLPSFunction2D.instance(self._inside_mesh, value)
@@ -195,7 +195,7 @@ class SOLPSSimulation:
 
     @ion_temperature.setter
     def ion_temperature(self, value):
-        value = np.array(value, dtype=np.float64, copy=False)
+        value = np.asarray(value, dtype=np.float64)
         _check_shape("ion_temperature", value, (self.mesh.ny, self.mesh.nx))
         self._ion_temperature = value
         self._ion_temperature_f2d = SOLPSFunction2D.instance(self._inside_mesh, value)
@@ -234,7 +234,7 @@ class SOLPSSimulation:
 
     @neutral_temperature.setter
     def neutral_temperature(self, value):
-        value = np.array(value, dtype=np.float64, copy=False)
+        value = np.asarray(value, dtype=np.float64)
         _check_shape("neutral_temperature", value, (len(self._neutral_list), self.mesh.ny, self.mesh.nx))
         self._neutral_temperature = value
         self._neutral_temperature_f2d = {}
@@ -274,7 +274,7 @@ class SOLPSSimulation:
 
     @electron_density.setter
     def electron_density(self, value):
-        value = np.array(value, dtype=np.float64, copy=False)
+        value = np.asarray(value, dtype=np.float64)
         _check_shape("electron_density", value, (self.mesh.ny, self.mesh.nx))
         self._electron_density = value
         self._electron_density_f2d = SOLPSFunction2D.instance(self._inside_mesh, value)
@@ -292,7 +292,7 @@ class SOLPSSimulation:
 
     @electron_velocities.setter
     def electron_velocities(self, value):
-        value = np.array(value, dtype=np.float64, copy=False)
+        value = np.asarray(value, dtype=np.float64)
         _check_shape("electron_velocities", value, (3, self.mesh.ny, self.mesh.nx))
 
         # Converting to cylindrical coordinates
@@ -316,7 +316,7 @@ class SOLPSSimulation:
 
     @electron_velocities_cylindrical.setter
     def electron_velocities_cylindrical(self, value):
-        value = np.array(value, dtype=np.float64, copy=False)
+        value = np.asarray(value, dtype=np.float64)
         _check_shape("electron_velocities_cylindrical", value, (3, self.mesh.ny, self.mesh.nx))
 
         # Converting to poloidal coordinates
@@ -380,7 +380,7 @@ class SOLPSSimulation:
 
     @species_density.setter
     def species_density(self, value):
-        value = np.array(value, dtype=np.float64, copy=False)
+        value = np.asarray(value, dtype=np.float64)
         _check_shape("species_density", value, (len(self._species_list), self.mesh.ny, self.mesh.nx))
         self._species_density = value
         self._species_density_f2d = {}
@@ -403,7 +403,7 @@ class SOLPSSimulation:
 
     @velocities.setter
     def velocities(self, value):
-        value = np.array(value, dtype=np.float64, copy=False)
+        value = np.asarray(value, dtype=np.float64)
         _check_shape("velocities", value, (len(self.species_list), 3, self.mesh.ny, self.mesh.nx))
 
         # Converting to cylindrical coordinates
@@ -433,7 +433,7 @@ class SOLPSSimulation:
 
     @velocities_cylindrical.setter
     def velocities_cylindrical(self, value):
-        value = np.array(value, dtype=np.float64, copy=False)
+        value = np.asarray(value, dtype=np.float64)
         _check_shape("velocities_cylindrical", value, (len(self.species_list), 3, self.mesh.ny, self.mesh.nx))
 
         # Converting to poloidal coordinates
@@ -523,7 +523,7 @@ class SOLPSSimulation:
 
     @total_radiation.setter
     def total_radiation(self, value):
-        value = np.array(value, dtype=np.float64, copy=False)
+        value = np.asarray(value, dtype=np.float64)
         _check_shape("total_radiation", value, (self.mesh.ny, self.mesh.nx))
         self._total_radiation = value
         self._total_radiation_f2d = SOLPSFunction2D.instance(self._inside_mesh, value)
@@ -561,7 +561,7 @@ class SOLPSSimulation:
 
     @halpha_mol_radiation.setter
     def halpha_mol_radiation(self, value):
-        value = np.array(value, dtype=np.float64, copy=False)
+        value = np.asarray(value, dtype=np.float64)
         _check_shape("halpha_mol_radiation", value, (self.mesh.ny, self.mesh.nx))
         self._halpha_mol_radiation = value
         self._halpha_mol_radiation_f2d = SOLPSFunction2D.instance(self._inside_mesh, value)
@@ -599,7 +599,7 @@ class SOLPSSimulation:
 
     @halpha_total_radiation.setter
     def halpha_total_radiation(self, value):
-        value = np.array(value, dtype=np.float64, copy=False)
+        value = np.asarray(value, dtype=np.float64)
         _check_shape("halpha_total_radiation", value, (self.mesh.ny, self.mesh.nx))
         self._halpha_total_radiation = value
         self._halpha_total_radiation_f2d = SOLPSFunction2D.instance(self._inside_mesh, value)
@@ -616,7 +616,7 @@ class SOLPSSimulation:
 
     @b_field.setter
     def b_field(self, value):
-        value = np.array(value, dtype=np.float64, copy=False)
+        value = np.asarray(value, dtype=np.float64)
         _check_shape("b_field", value, (3, self.mesh.ny, self.mesh.nx))
 
         # Converting to cylindrical system
@@ -658,7 +658,7 @@ class SOLPSSimulation:
 
     @b_field_cylindrical.setter
     def b_field_cylindrical(self, value):
-        value = np.array(value, dtype=np.float64, copy=False)
+        value = np.asarray(value, dtype=np.float64)
         _check_shape("b_field_cylindrical", value, (3, self.mesh.ny, self.mesh.nx))
 
         # Converting to poloidal system
@@ -876,9 +876,9 @@ def b2_flux_to_velocity(sim, poloidal_flux, radial_flux, parallel_velocity):
     mesh = sim.mesh
     b = sim.b_field_cylindrical
 
-    poloidal_flux = np.array(poloidal_flux, dtype=np.float64, copy=False)
-    radial_flux = np.array(radial_flux, dtype=np.float64, copy=False)
-    parallel_velocity = np.array(parallel_velocity, dtype=np.float64, copy=False)
+    poloidal_flux = np.asarray(poloidal_flux, dtype=np.float64)
+    radial_flux = np.asarray(radial_flux, dtype=np.float64)
+    parallel_velocity = np.asarray(parallel_velocity, dtype=np.float64)
 
     nx = mesh.nx  # poloidal
     ny = mesh.ny  # radial
@@ -969,9 +969,9 @@ def eirene_flux_to_velocity(sim, poloidal_flux, radial_flux, parallel_velocity):
     mesh = sim.mesh
     b = sim.b_field_cylindrical
 
-    poloidal_flux = np.array(poloidal_flux, dtype=np.float64, copy=False)
-    radial_flux = np.array(radial_flux, dtype=np.float64, copy=False)
-    parallel_velocity = np.array(parallel_velocity, dtype=np.float64, copy=False)
+    poloidal_flux = np.asarray(poloidal_flux, dtype=np.float64)
+    radial_flux = np.asarray(radial_flux, dtype=np.float64)
+    parallel_velocity = np.asarray(parallel_velocity, dtype=np.float64)
 
     nx = mesh.nx  # poloidal
     ny = mesh.ny  # radial
